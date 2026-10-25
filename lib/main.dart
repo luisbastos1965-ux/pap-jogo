@@ -3,9 +3,19 @@ import 'dart:async';
 import 'package:audioplayers/audioplayers.dart';
 import 'level_selection.dart';
 import 'audio_manager.dart';
+import 'progress_manager.dart';
+import 'rules_screen.dart';
 import 'profile_screen.dart';
+import 'gabinete_screen.dart';
+import 'escala_screen.dart';
+import 'package:google_fonts/google_fonts.dart';
 
-void main() {
+void main() async {
+  // 2. Garante a inicialização dos pacotes nativos
+  WidgetsFlutterBinding.ensureInitialized();
+  // 3. Carrega o XP gravado
+  await ProgressManager().init();
+
   runApp(const PharmaIncApp());
 }
 
@@ -14,9 +24,17 @@ class PharmaIncApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
+    return MaterialApp(
       debugShowCheckedModeBanner: false,
-      home: SplashScreen(),
+      title: 'Pharma Inc.',
+      theme: ThemeData(
+        useMaterial3: true,
+        textTheme:
+            GoogleFonts.poppinsTextTheme(), // Aplica a fonte Poppins globalmente
+        scaffoldBackgroundColor: const Color(0xFFF4EFFA),
+        primaryColor: const Color(0xFF673AB7),
+      ),
+      home: const SplashScreen(),
     );
   }
 }
@@ -82,6 +100,7 @@ class _MenuScreenState extends State<MenuScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _animation;
+  bool _isBgmStarted = false; // <-- Adiciona exatamente aqui
 
   @override
   void initState() {
@@ -110,25 +129,176 @@ class _MenuScreenState extends State<MenuScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Colors.white, Color(0xFFF4EFFA)],
+      body: Listener(
+        onPointerDown: (_) {
+          if (!_isBgmStarted) {
+            AudioManager().playCrossfade('bgm.mp3');
+            _isBgmStarted = true;
+          }
+        },
+        child: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Colors.white, Color(0xFFF4EFFA)],
+            ),
           ),
-        ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              Expanded(
-                child: Center(
+          child: SafeArea(
+            child: Column(
+              children: [
+                // CABEÇALHO (Status + Mute)
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24.0,
+                    vertical: 16.0,
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 20,
+                            backgroundColor: const Color(
+                              0xFF673AB7,
+                            ).withValues(alpha: 0.1),
+                            child: const Icon(
+                              Icons.person_rounded,
+                              color: Color(0xFF673AB7),
+                              size: 20,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Nível ${ProgressManager().currentLevel}',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w900,
+                                  color: Color(0xFF1E1B26),
+                                  fontSize: 14,
+                                ),
+                              ),
+                              Text(
+                                '${ProgressManager().currentXP} XP',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.grey.shade500,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      IconButton(
+                        icon: Icon(
+                          AudioManager().isMuted
+                              ? Icons.volume_off_rounded
+                              : Icons.volume_up_rounded,
+                          color: Colors.grey.shade400,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            AudioManager().toggleMute();
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+
+                // CORPO CENTRAL
+                Expanded(
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.symmetric(horizontal: 28.0),
                     child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        // O Logótipo animado
+                        const SizedBox(height: 16), // Respiro inicial
+                        // 1. CARTÃO DICA DE BALCÃO
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.9),
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(
+                                  0xFF673AB7,
+                                ).withValues(alpha: 0.12),
+                                blurRadius: 24,
+                                offset: const Offset(0, 10),
+                              ),
+                            ],
+                            border: Border.all(color: Colors.white, width: 2),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  gradient: const LinearGradient(
+                                    colors: [
+                                      Color(0xFF7E57C2),
+                                      Color(0xFF512DA8),
+                                    ],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: const Color(
+                                        0xFF512DA8,
+                                      ).withValues(alpha: 0.4),
+                                      blurRadius: 10,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
+                                ),
+                                child: const Icon(
+                                  Icons.lightbulb_rounded,
+                                  color: Colors.white,
+                                  size: 22,
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              const Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'DICA DE BALCÃO',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w900,
+                                        color: Color(0xFF512DA8),
+                                        letterSpacing: 1.2,
+                                      ),
+                                    ),
+                                    SizedBox(height: 6),
+                                    Text(
+                                      'O paracetamol tem um limite diário seguro de 4g para adultos.',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: Color(0xFF4A4453),
+                                        height: 1.4,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(
+                          height: 72,
+                        ), // Espaço equilibrado acima do logótipo
+                        // 2. LOGÓTIPO ANIMADO
                         AnimatedBuilder(
                           animation: _animation,
                           builder: (context, child) {
@@ -152,68 +322,15 @@ class _MenuScreenState extends State<MenuScreen>
                             ),
                             child: Image.asset(
                               'assets/images/logo_splash.png',
-                              height: 240,
+                              height: 280,
                             ),
                           ),
                         ),
-                        const SizedBox(height: 48),
 
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(
-                              0xFF673AB7,
-                            ).withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.science,
-                                size: 16,
-                                color: Color(0xFF673AB7),
-                              ),
-                              SizedBox(width: 6),
-                              Text(
-                                'SIMULADOR CLÍNICO',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 1.2,
-                                  color: Color(0xFF673AB7),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        const Text(
-                          'Pronto para o teu turno?',
-                          style: TextStyle(
-                            fontSize: 32,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: -0.8,
-                            color: Color(0xFF1E1B26),
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 12),
-                        const Text(
-                          'Testa os teus conhecimentos e resolve\ndesafios reais de farmácia.',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Color(0xFF6B6576),
-                            height: 1.4,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 48),
-
-                        // Botão Principal
+                        const SizedBox(
+                          height: 72,
+                        ), // Espaço simétrico abaixo do logótipo
+                        // 3. BOTÃO PRINCIPAL (Entrar ao Balcão)
                         Container(
                           width: double.infinity,
                           height: 64,
@@ -242,17 +359,18 @@ class _MenuScreenState extends State<MenuScreen>
                                 borderRadius: BorderRadius.circular(50),
                               ),
                             ),
-                            onPressed: () {
-                              Navigator.push(
+                            onPressed: () async {
+                              await Navigator.push(
                                 context,
                                 MaterialPageRoute(
                                   builder: (context) =>
                                       const LevelSelectionScreen(),
                                 ),
                               );
+                              setState(() {});
                             },
                             child: const Text(
-                              'INICIAR TURNO',
+                              'ENTRAR AO BALCÃO',
                               style: TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
@@ -262,123 +380,135 @@ class _MenuScreenState extends State<MenuScreen>
                             ),
                           ),
                         ),
-                        const SizedBox(height: 16),
 
-                        // "Pill" Dupla (Regras / Perfil)
-                        Container(
-                          height: 60,
-                          decoration: BoxDecoration(
-                            color: const Color(
-                              0xFF673AB7,
-                            ).withValues(alpha: 0.08),
-                            borderRadius: BorderRadius.circular(50),
-                          ),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: GestureDetector(
-                                  onTap: () {
-                                    print("Avançar para Regras");
-                                  },
-                                  child: Container(
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFF673AB7),
-                                      borderRadius: BorderRadius.circular(50),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: const Color(
-                                            0xFF673AB7,
-                                          ).withValues(alpha: 0.3),
-                                          blurRadius: 8,
-                                          offset: const Offset(2, 0),
-                                        ),
-                                      ],
-                                    ),
-                                    child: const Center(
-                                      child: Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          Icon(
-                                            Icons.menu_book_rounded,
-                                            color: Colors.white,
-                                            size: 20,
-                                          ),
-                                          SizedBox(width: 8),
-                                          Text(
-                                            'Regras',
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              color: Colors.white,
-                                              fontSize: 15,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              Expanded(
-                                child: GestureDetector(
-                                  onTap: () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) =>
-                                            const ProfileScreen(),
-                                      ),
-                                    );
-                                  },
-                                  child: Container(
-                                    color: Colors.transparent,
-                                    child: const Center(
-                                      child: Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          Icon(
-                                            Icons.person_rounded,
-                                            color: Color(0xFF673AB7),
-                                            size: 20,
-                                          ),
-                                          SizedBox(width: 8),
-                                          Text(
-                                            'Perfil',
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              color: Color(0xFF673AB7),
-                                              fontSize: 15,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
+                        const SizedBox(height: 40),
                       ],
                     ),
                   ),
                 ),
-              ),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 24.0, top: 16.0),
-                child: Text(
-                  'Escola Profissional Profitecla do Porto • PAP',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: const Color(0xFF1E1B26).withValues(alpha: 0.3),
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
+        ),
+      ),
+
+      // NOVA DOCK FLUTUANTE INJETADA AQUI
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 24),
+            height: 64,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(32),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF673AB7).withValues(alpha: 0.15),
+                  blurRadius: 24,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _buildDockIcon(
+                  icon: Icons.menu_book_rounded,
+                  label: 'Bula',
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const RulesScreen(),
+                      ),
+                    );
+                  },
+                ),
+                _buildDockIcon(
+                  icon: Icons.badge_rounded,
+                  label: 'Cédula',
+                  onTap: () async {
+                    await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const ProfileScreen(),
+                      ),
+                    );
+                    setState(() {});
+                  },
+                ),
+                _buildDockIcon(
+                  icon: Icons.leaderboard_rounded,
+                  label: 'Escala',
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const EscalaScreen(),
+                      ),
+                    );
+                  },
+                ),
+                _buildDockIcon(
+                  icon: Icons.settings_rounded,
+                  label: 'Gabinete',
+                  onTap: () async {
+                    await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const GabineteScreen(),
+                      ),
+                    );
+                    setState(
+                      () {},
+                    ); // Atualiza o ecrã inicial caso tenhas feito reset ao XP
+                  },
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Pharma Inc. © 2027',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: const Color(0xFF1E1B26).withValues(alpha: 0.4),
+              letterSpacing: 0.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // WIDGET CONSTRUTOR DOS ÍCONES DA DOCK
+  Widget _buildDockIcon({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: const Color(0xFF673AB7), size: 24),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF673AB7),
+              ),
+            ),
+          ],
         ),
       ),
     );

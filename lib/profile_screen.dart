@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'progress_manager.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -6,6 +7,13 @@ class ProfileScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const primaryColor = Color(0xFF673AB7);
+
+    // Puxa os dados reais da memória do dispositivo
+    final int xp = ProgressManager().currentXP;
+    final int lvl = ProgressManager().currentLevel;
+    final int nextXp = ProgressManager().nextLevelXP;
+    final double progress = xp / nextXp;
+    final int missingXp = nextXp - xp;
 
     return Scaffold(
       body: Container(
@@ -121,7 +129,7 @@ class ProfileScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 32),
 
-                      // 3. BARRA DE PROGRESSO E NÍVEL (XP)
+                      // 3. BARRA DE PROGRESSO E NÍVEL (XP DINÂMICO)
                       Container(
                         padding: const EdgeInsets.all(24),
                         decoration: BoxDecoration(
@@ -144,9 +152,9 @@ class ProfileScreen extends StatelessWidget {
                                   children: [
                                     Icon(Icons.stars_rounded, color: Colors.amber.shade600, size: 24),
                                     const SizedBox(width: 8),
-                                    const Text(
-                                      'NÍVEL 3',
-                                      style: TextStyle(
+                                    Text(
+                                      'NÍVEL $lvl',
+                                      style: const TextStyle(
                                         fontSize: 16,
                                         fontWeight: FontWeight.w900,
                                         color: primaryColor,
@@ -155,7 +163,7 @@ class ProfileScreen extends StatelessWidget {
                                   ],
                                 ),
                                 Text(
-                                  '1,250 / 2,000 XP',
+                                  '$xp / $nextXp XP',
                                   style: TextStyle(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w800,
@@ -168,7 +176,7 @@ class ProfileScreen extends StatelessWidget {
                             ClipRRect(
                               borderRadius: BorderRadius.circular(10),
                               child: LinearProgressIndicator(
-                                value: 0.625, // 1250 / 2000
+                                value: progress,
                                 backgroundColor: primaryColor.withValues(alpha: 0.1),
                                 color: primaryColor,
                                 minHeight: 10,
@@ -176,7 +184,7 @@ class ProfileScreen extends StatelessWidget {
                             ),
                             const SizedBox(height: 12),
                             Text(
-                              'Faltam 750 XP para desbloquear "Farmacêutico Sénior"',
+                              'Faltam $missingXp XP para o próximo nível',
                               style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,

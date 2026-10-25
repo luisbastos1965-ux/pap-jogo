@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart'; 
 import 'audio_manager.dart';
+import 'progress_manager.dart'; // Import necessário para o XP
 
 class QuizScreen extends StatefulWidget {
   final String levelName;
@@ -22,7 +23,6 @@ class _QuizScreenState extends State<QuizScreen> {
   
   final int correctAnswerIndex = 1; 
   
-  // Apagámos o _bgmPlayer. Mantemos apenas o _sfxPlayer para os efeitos rápidos (clique, certo, errado).
   final AudioPlayer _sfxPlayer = AudioPlayer();
 
   final List<String> options = [
@@ -37,17 +37,13 @@ class _QuizScreenState extends State<QuizScreen> {
   @override
   void initState() {
     super.initState();
-    // Chama o Gestor Global para fazer o fade out da música do menu e arrancar a do quiz
     AudioManager().playCrossfade('quiz_bgm.mp3');
   }
 
   @override
   void dispose() {
     _sfxPlayer.dispose();
-    
-    // Ao fechar o ecrã do quiz, pede ao Gestor Global para voltar à música inicial
     AudioManager().playCrossfade('bgm.mp3');
-    
     super.dispose();
   }
 
@@ -89,7 +85,7 @@ class _QuizScreenState extends State<QuizScreen> {
                           shape: BoxShape.circle,
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.05), 
+                              color: Colors.black.withValues(alpha: 0.05), 
                               blurRadius: 10, 
                               offset: const Offset(0, 4),
                             ),
@@ -101,9 +97,9 @@ class _QuizScreenState extends State<QuizScreen> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       decoration: BoxDecoration(
-                        color: widget.themeColor.withOpacity(0.15),
+                        color: widget.themeColor.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: widget.themeColor.withOpacity(0.3)),
+                        border: Border.all(color: widget.themeColor.withValues(alpha: 0.3)),
                       ),
                       child: Row(
                         children: [
@@ -164,7 +160,7 @@ class _QuizScreenState extends State<QuizScreen> {
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color: widget.themeColor.withOpacity(0.12), 
+                        color: widget.themeColor.withValues(alpha: 0.12), 
                         blurRadius: 24, 
                         offset: const Offset(0, 12),
                       )
@@ -245,23 +241,23 @@ class _QuizScreenState extends State<QuizScreen> {
                     if (isAnswered) {
                       if (isCorrectOption) {
                         borderColor = const Color(0xFF4CAF50); 
-                        bgColor = const Color(0xFF4CAF50).withOpacity(0.08); 
+                        bgColor = const Color(0xFF4CAF50).withValues(alpha: 0.08); 
                         markerBg = const Color(0xFF4CAF50); 
                         markerText = Colors.white; 
                         textColor = const Color(0xFF2E7D32);
                       } else if (isSelected) {
                         borderColor = const Color(0xFFE53935); 
-                        bgColor = const Color(0xFFE53935).withOpacity(0.08); 
+                        bgColor = const Color(0xFFE53935).withValues(alpha: 0.08); 
                         markerBg = const Color(0xFFE53935); 
                         markerText = Colors.white; 
                         textColor = const Color(0xFFC62828);
                       } else {
-                        bgColor = Colors.white.withOpacity(0.5); 
+                        bgColor = Colors.white.withValues(alpha: 0.5); 
                         textColor = Colors.grey.shade400;
                       }
                     } else if (isSelected) {
                       borderColor = widget.themeColor; 
-                      bgColor = widget.themeColor.withOpacity(0.08); 
+                      bgColor = widget.themeColor.withValues(alpha: 0.08); 
                       markerBg = widget.themeColor; 
                       markerText = Colors.white;
                     }
@@ -328,7 +324,7 @@ class _QuizScreenState extends State<QuizScreen> {
                 decoration: BoxDecoration(
                   color: Colors.white,
                   boxShadow: [
-                    BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, -5))
+                    BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, -5))
                   ],
                 ),
                 child: AnimatedContainer(
@@ -339,7 +335,7 @@ class _QuizScreenState extends State<QuizScreen> {
                     borderRadius: BorderRadius.circular(50),
                     color: selectedOption != null ? widget.themeColor : Colors.grey.shade200,
                     boxShadow: selectedOption != null ? [
-                      BoxShadow(color: widget.themeColor.withOpacity(0.4), blurRadius: 15, offset: const Offset(0, 6))
+                      BoxShadow(color: widget.themeColor.withValues(alpha: 0.4), blurRadius: 15, offset: const Offset(0, 6))
                     ] : [],
                   ),
                   child: Material(
@@ -353,8 +349,11 @@ class _QuizScreenState extends State<QuizScreen> {
                           setState(() {
                             isAnswered = true;
                           });
+                          
+                          // Lógica de recompensa XP implementada
                           if (selectedOption == correctAnswerIndex) {
                             _playSound('correct.mp3');
+                            ProgressManager().addXP(150); 
                           } else {
                             _playSound('wrong.mp3');
                           }
@@ -396,10 +395,10 @@ class _QuizScreenState extends State<QuizScreen> {
       margin: const EdgeInsets.only(top: 16, bottom: 24),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: isCorrect ? const Color(0xFF4CAF50).withOpacity(0.1) : const Color(0xFFE53935).withOpacity(0.1),
+        color: isCorrect ? const Color(0xFF4CAF50).withValues(alpha: 0.1) : const Color(0xFFE53935).withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isCorrect ? const Color(0xFF4CAF50).withOpacity(0.3) : const Color(0xFFE53935).withOpacity(0.3),
+          color: isCorrect ? const Color(0xFF4CAF50).withValues(alpha: 0.3) : const Color(0xFFE53935).withValues(alpha: 0.3),
         ),
       ),
       child: Column(
