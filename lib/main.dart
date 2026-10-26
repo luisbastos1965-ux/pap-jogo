@@ -11,10 +11,14 @@ import 'escala_screen.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 void main() async {
-  // 2. Garante a inicialização dos pacotes nativos
   WidgetsFlutterBinding.ensureInitialized();
-  // 3. Carrega o XP gravado
-  await ProgressManager().init();
+
+  // Inicializamos o gestor de progresso sem bloquear o motor gráfico principal se falhar
+  try {
+    await ProgressManager().init();
+  } catch (e) {
+    debugPrint('Erro ao carregar dados locais: $e');
+  }
 
   runApp(const PharmaIncApp());
 }
@@ -29,8 +33,7 @@ class PharmaIncApp extends StatelessWidget {
       title: 'Pharma Inc.',
       theme: ThemeData(
         useMaterial3: true,
-        textTheme:
-            GoogleFonts.poppinsTextTheme(), // Aplica a fonte Poppins globalmente
+        textTheme: GoogleFonts.poppinsTextTheme(),
         scaffoldBackgroundColor: const Color(0xFFF4EFFA),
         primaryColor: const Color(0xFF673AB7),
       ),
@@ -53,18 +56,23 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    Future.delayed(const Duration(milliseconds: 100), () {
+
+    // Dispara a animação logo após o primeiro frame
+    WidgetsBinding.instance.addPostFrameCallback((_) {
       setState(() {
         _opacity = 1.0;
         _scale = 1.0;
       });
     });
 
+    // Temporizador seguro para transitar para o Menu
     Timer(const Duration(milliseconds: 3500), () {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const MenuScreen()),
-      );
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const MenuScreen()),
+        );
+      }
     });
   }
 
@@ -100,22 +108,19 @@ class _MenuScreenState extends State<MenuScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _animation;
-  bool _isBgmStarted = false; // <-- Adiciona exatamente aqui
+  bool _isBgmStarted = false;
 
   @override
   void initState() {
     super.initState();
-
-    // Inicia a música usando o nosso Gestor Global com crossfade automático
     AudioManager().playCrossfade('bgm.mp3');
 
-    // Configuração da animação flutuante
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 2),
     )..repeat(reverse: true);
 
-    _animation = Tween<double>(begin: -12, end: 12).animate(
+    _animation = Tween<double>(begin: -6, end: 6).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeInOutSine),
     );
   }
@@ -145,31 +150,28 @@ class _MenuScreenState extends State<MenuScreen>
             ),
           ),
           child: SafeArea(
-            child: Column(
-              children: [
-                // CABEÇALHO (Status + Mute)
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24.0,
-                    vertical: 16.0,
-                  ),
-                  child: Row(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24.0),
+              child: Column(
+                children: [
+                  const SizedBox(height: 12), // Margem do topo
+
+                  // 1. CABEÇALHO (Status + Mute)
+                  Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Row(
                         children: [
                           CircleAvatar(
-                            radius: 20,
-                            backgroundColor: const Color(
-                              0xFF673AB7,
-                            ).withValues(alpha: 0.1),
+                            radius: 18,
+                            backgroundColor: const Color(0xFF673AB7).withValues(alpha: 0.1),
                             child: const Icon(
                               Icons.person_rounded,
                               color: Color(0xFF673AB7),
-                              size: 20,
+                              size: 18,
                             ),
                           ),
-                          const SizedBox(width: 12),
+                          const SizedBox(width: 10),
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -178,7 +180,7 @@ class _MenuScreenState extends State<MenuScreen>
                                 style: const TextStyle(
                                   fontWeight: FontWeight.w900,
                                   color: Color(0xFF1E1B26),
-                                  fontSize: 14,
+                                  fontSize: 13,
                                 ),
                               ),
                               Text(
@@ -186,7 +188,7 @@ class _MenuScreenState extends State<MenuScreen>
                                 style: TextStyle(
                                   fontWeight: FontWeight.w700,
                                   color: Colors.grey.shade500,
-                                  fontSize: 12,
+                                  fontSize: 11,
                                 ),
                               ),
                             ],
@@ -208,206 +210,187 @@ class _MenuScreenState extends State<MenuScreen>
                       ),
                     ],
                   ),
-                ),
 
-                // CORPO CENTRAL
-                Expanded(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.symmetric(horizontal: 28.0),
-                    child: Column(
+                  // Distância exata fixa entre o cabeçalho e a Dica (como na tua imagem)
+                  const SizedBox(height: 28),
+
+                  // 2. CARTÃO DICA DE BALCÃO
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.9),
+                      borderRadius: BorderRadius.circular(18),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF673AB7).withValues(alpha: 0.1),
+                          blurRadius: 16,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
+                      border: Border.all(color: Colors.white, width: 2),
+                    ),
+                    child: Row(
                       children: [
-                        const SizedBox(height: 16), // Respiro inicial
-                        // 1. CARTÃO DICA DE BALCÃO
                         Container(
-                          padding: const EdgeInsets.all(16),
+                          padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.9),
-                            borderRadius: BorderRadius.circular(20),
-                            boxShadow: [
-                              BoxShadow(
-                                color: const Color(
-                                  0xFF673AB7,
-                                ).withValues(alpha: 0.12),
-                                blurRadius: 24,
-                                offset: const Offset(0, 10),
-                              ),
-                            ],
-                            border: Border.all(color: Colors.white, width: 2),
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  gradient: const LinearGradient(
-                                    colors: [
-                                      Color(0xFF7E57C2),
-                                      Color(0xFF512DA8),
-                                    ],
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                  ),
-                                  shape: BoxShape.circle,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: const Color(
-                                        0xFF512DA8,
-                                      ).withValues(alpha: 0.4),
-                                      blurRadius: 10,
-                                      offset: const Offset(0, 4),
-                                    ),
-                                  ],
-                                ),
-                                child: const Icon(
-                                  Icons.lightbulb_rounded,
-                                  color: Colors.white,
-                                  size: 22,
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-                              const Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'DICA DE BALCÃO',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w900,
-                                        color: Color(0xFF512DA8),
-                                        letterSpacing: 1.2,
-                                      ),
-                                    ),
-                                    SizedBox(height: 6),
-                                    Text(
-                                      'O paracetamol tem um limite diário seguro de 4g para adultos.',
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
-                                        color: Color(0xFF4A4453),
-                                        height: 1.4,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-
-                        const SizedBox(
-                          height: 72,
-                        ), // Espaço equilibrado acima do logótipo
-                        // 2. LOGÓTIPO ANIMADO
-                        AnimatedBuilder(
-                          animation: _animation,
-                          builder: (context, child) {
-                            return Transform.translate(
-                              offset: Offset(0, _animation.value),
-                              child: child,
-                            );
-                          },
-                          child: Container(
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: const Color(
-                                    0xFF673AB7,
-                                  ).withValues(alpha: 0.15),
-                                  blurRadius: 50,
-                                  spreadRadius: 10,
-                                ),
-                              ],
-                            ),
-                            child: Image.asset(
-                              'assets/images/logo_splash.png',
-                              height: 280,
-                            ),
-                          ),
-                        ),
-
-                        const SizedBox(
-                          height: 72,
-                        ), // Espaço simétrico abaixo do logótipo
-                        // 3. BOTÃO PRINCIPAL (Entrar ao Balcão)
-                        Container(
-                          width: double.infinity,
-                          height: 64,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(50),
                             gradient: const LinearGradient(
                               colors: [Color(0xFF7E57C2), Color(0xFF512DA8)],
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
                             ),
+                            shape: BoxShape.circle,
                             boxShadow: [
                               BoxShadow(
-                                color: const Color(
-                                  0xFF512DA8,
-                                ).withValues(alpha: 0.4),
-                                blurRadius: 15,
-                                offset: const Offset(0, 8),
+                                color: const Color(0xFF512DA8).withValues(alpha: 0.3),
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
                               ),
                             ],
                           ),
-                          child: ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.transparent,
-                              shadowColor: Colors.transparent,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(50),
-                              ),
-                            ),
-                            onPressed: () async {
-                              await Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) =>
-                                      const LevelSelectionScreen(),
-                                ),
-                              );
-                              setState(() {});
-                            },
-                            child: const Text(
-                              'ENTRAR AO BALCÃO',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 1.5,
-                                color: Colors.white,
-                              ),
-                            ),
+                          child: const Icon(
+                            Icons.lightbulb_rounded,
+                            color: Colors.white,
+                            size: 18,
                           ),
                         ),
-
-                        const SizedBox(height: 40),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'DICA DE BALCÃO',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w900,
+                                  color: Color(0xFF512DA8),
+                                  letterSpacing: 1.2,
+                                ),
+                              ),
+                              SizedBox(height: 3),
+                              Text(
+                                'O paracetamol tem um limite diário seguro de 4g para adultos.',
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF4A4453),
+                                  height: 1.3,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ],
                     ),
                   ),
-                ),
-              ],
+
+                  // Spacer 1: Empurra o logótipo para o centro exato
+                  const Spacer(),
+
+                  // 3. LOGÓTIPO ANIMADO (Aumentado para 230 - o maior possível sem quebrar)
+                  AnimatedBuilder(
+                    animation: _animation,
+                    builder: (context, child) {
+                      return Transform.translate(
+                        offset: Offset(0, _animation.value),
+                        child: child,
+                      );
+                    },
+                    child: Container(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF673AB7).withValues(alpha: 0.12),
+                            blurRadius: 35,
+                            spreadRadius: 4,
+                          ),
+                        ],
+                      ),
+                      child: Image.asset(
+                        'assets/images/logo_splash.png',
+                        height: 230,
+                      ),
+                    ),
+                  ),
+
+                  // Spacer 2: Garante a equidistância simétrica
+                  const Spacer(),
+
+                  // 4. BOTÃO PRINCIPAL (Entrar ao Balcão)
+                  Container(
+                    width: double.infinity,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(50),
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF7E57C2), Color(0xFF512DA8)],
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF512DA8).withValues(alpha: 0.35),
+                          blurRadius: 10,
+                          offset: const Offset(0, 5),
+                        ),
+                      ],
+                    ),
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.transparent,
+                        shadowColor: Colors.transparent,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(50),
+                        ),
+                      ),
+                      onPressed: () async {
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const LevelSelectionScreen(),
+                          ),
+                        );
+                        setState(() {});
+                      },
+                      child: const Text(
+                        'ENTRAR AO BALCÃO',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.5,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // Espaçamento exato e rígido entre o botão e a dock flutuante (baseado na tua imagem)
+                  const SizedBox(height: 96), 
+                ],
+              ),
             ),
           ),
         ),
       ),
 
-      // NOVA DOCK FLUTUANTE INJETADA AQUI
+      // DOCK FLUTUANTE INFERIOR
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       floatingActionButton: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 24),
-            height: 64,
+            height: 54,
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(32),
+              borderRadius: BorderRadius.circular(27),
               boxShadow: [
                 BoxShadow(
                   color: const Color(0xFF673AB7).withValues(alpha: 0.15),
-                  blurRadius: 24,
-                  offset: const Offset(0, 10),
+                  blurRadius: 16,
+                  offset: const Offset(0, 6),
                 ),
               ],
             ),
@@ -461,19 +444,17 @@ class _MenuScreenState extends State<MenuScreen>
                         builder: (context) => const GabineteScreen(),
                       ),
                     );
-                    setState(
-                      () {},
-                    ); // Atualiza o ecrã inicial caso tenhas feito reset ao XP
+                    setState(() {});
                   },
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 4),
           Text(
             'Pharma Inc. © 2027',
             style: TextStyle(
-              fontSize: 10,
+              fontSize: 8.5,
               fontWeight: FontWeight.w600,
               color: const Color(0xFF1E1B26).withValues(alpha: 0.4),
               letterSpacing: 0.5,
@@ -484,7 +465,6 @@ class _MenuScreenState extends State<MenuScreen>
     );
   }
 
-  // WIDGET CONSTRUTOR DOS ÍCONES DA DOCK
   Widget _buildDockIcon({
     required IconData icon,
     required String label,
@@ -494,16 +474,16 @@ class _MenuScreenState extends State<MenuScreen>
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+        padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 4.0),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: const Color(0xFF673AB7), size: 24),
-            const SizedBox(height: 4),
+            Icon(icon, color: const Color(0xFF673AB7), size: 20),
+            const SizedBox(height: 1),
             Text(
               label,
               style: const TextStyle(
-                fontSize: 10,
+                fontSize: 8.5,
                 fontWeight: FontWeight.w800,
                 color: Color(0xFF673AB7),
               ),
