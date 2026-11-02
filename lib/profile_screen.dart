@@ -1,375 +1,421 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:math' as math;
 import 'progress_manager.dart';
+import 'auth_screen.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    const primaryColor = Color(0xFF673AB7);
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
 
-    // Puxa os dados reais da memória do dispositivo
-    final int xp = ProgressManager().currentXP;
-    final int lvl = ProgressManager().currentLevel;
-    final int nextXp = ProgressManager().nextLevelXP;
-    final double progress = xp / nextXp;
-    final int missingXp = nextXp - xp;
+class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProviderStateMixin {
+  late AnimationController _animController;
+  late Animation<double> _fadeAnim;
+  late Animation<Offset> _slideAnim;
+  
+  String _firestoreUserName = '';
+  String _playerLicenseId = 'PI-0000';
+  bool _isLoadingName = true;
 
-    return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Colors.white, Color(0xFFF4EFFA)],
-          ),
-        ),
-        child: SafeArea(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // 1. CABEÇALHO (Botão de Voltar e Título)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-                child: Row(
-                  children: [
-                    InkWell(
-                      onTap: () => Navigator.pop(context),
-                      borderRadius: BorderRadius.circular(50),
-                      child: Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.05),
-                              blurRadius: 10,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: Icon(Icons.arrow_back_rounded, color: Colors.grey.shade700, size: 22),
-                      ),
-                    ),
-                    const Expanded(
-                      child: Text(
-                        'PERFIL CLÍNICO',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 1.5,
-                          color: primaryColor,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 42), // Espaçador para centrar o título
-                  ],
-                ),
-              ),
+  @override
+  void initState() {
+    super.initState();
+    _animController = AnimationController(vsync: this, duration: const Duration(milliseconds: 900));
+    _fadeAnim = Tween<double>(begin: 0, end: 1).animate(CurvedAnimation(parent: _animController, curve: Curves.easeOutCubic));
+    _slideAnim = Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero).animate(CurvedAnimation(parent: _animController, curve: Curves.easeOutCirc));
+    _animController.forward();
 
-              Expanded(
-                child: SingleChildScrollView(
-                  physics: const BouncingScrollPhysics(),
-                  padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
-                  child: Column(
-                    children: [
-                      // 2. AVATAR E INFO PRINCIPAL
-                      Center(
-                        child: Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFF7E57C2), Color(0xFF512DA8)],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: primaryColor.withValues(alpha: 0.3),
-                                blurRadius: 20,
-                                offset: const Offset(0, 10),
-                              ),
-                            ],
-                          ),
-                          child: Container(
-                            padding: const EdgeInsets.all(2),
-                            decoration: const BoxDecoration(
-                              color: Colors.white,
-                              shape: BoxShape.circle,
-                            ),
-                            child: const CircleAvatar(
-                              radius: 48,
-                              backgroundColor: Color(0xFFF4EFFA),
-                              child: Icon(Icons.person_rounded, size: 48, color: primaryColor),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      const Text(
-                        'Aluno Profitecla',
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.w900,
-                          color: Color(0xFF1E1B26),
-                          letterSpacing: -0.5,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Técnico de Farmácia em Formação',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.grey.shade600,
-                        ),
-                      ),
-                      const SizedBox(height: 32),
+    _fetchUserDataFromFirestore();
+  }
 
-                      // 3. BARRA DE PROGRESSO E NÍVEL (XP DINÂMICO)
-                      Container(
-                        padding: const EdgeInsets.all(24),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(24),
-                          boxShadow: [
-                            BoxShadow(
-                              color: primaryColor.withValues(alpha: 0.08),
-                              blurRadius: 24,
-                              offset: const Offset(0, 12),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Row(
-                                  children: [
-                                    Icon(Icons.stars_rounded, color: Colors.amber.shade600, size: 24),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      'NÍVEL $lvl',
-                                      style: const TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w900,
-                                        color: primaryColor,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                Text(
-                                  '$xp / $nextXp XP',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w800,
-                                    color: Colors.grey.shade500,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 16),
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(10),
-                              child: LinearProgressIndicator(
-                                value: progress,
-                                backgroundColor: primaryColor.withValues(alpha: 0.1),
-                                color: primaryColor,
-                                minHeight: 10,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            Text(
-                              'Faltam $missingXp XP para o próximo nível',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.grey.shade500,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 24),
+  Future<void> _fetchUserDataFromFirestore() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        // Gera um número de cédula único e consistente baseado nos primeiros caracteres do UID
+        final shortUid = user.uid.length >= 6 ? user.uid.substring(0, 6).toUpperCase() : '8492PI';
+        
+        final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+        if (doc.exists && doc.data() != null) {
+          setState(() {
+            _firestoreUserName = doc.data()!['name'] ?? user.displayName ?? 'Farmacêutico';
+            _playerLicenseId = 'REG. Nº #$shortUid';
+            _isLoadingName = false;
+          });
+          return;
+        }
+      }
+    } catch (e) {
+      debugPrint('Erro ao carregar dados do Firestore: $e');
+    }
+    
+    if (mounted) {
+      final user = FirebaseAuth.instance.currentUser;
+      setState(() {
+        _firestoreUserName = user?.displayName ?? 'Farmacêutico';
+        _playerLicenseId = 'REG. Nº #PI-2027';
+        _isLoadingName = false;
+      });
+    }
+  }
 
-                      // 4. ESTATÍSTICAS RÁPIDAS
-                      Row(
-                        children: [
-                          _buildStatCard(
-                            icon: Icons.cases_rounded,
-                            iconColor: const Color(0xFF2196F3),
-                            value: '42',
-                            label: 'Casos\nResolvidos',
-                          ),
-                          const SizedBox(width: 16),
-                          _buildStatCard(
-                            icon: Icons.track_changes_rounded,
-                            iconColor: const Color(0xFF4CAF50),
-                            value: '85%',
-                            label: 'Taxa de\nPrecisão',
-                          ),
-                          const SizedBox(width: 16),
-                          _buildStatCard(
-                            icon: Icons.local_fire_department_rounded,
-                            iconColor: const Color(0xFFFF9800),
-                            value: '7',
-                            label: 'Dias\nSeguidos',
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 32),
+  @override
+  void dispose() {
+    _animController.dispose();
+    super.dispose();
+  }
 
-                      // 5. CONQUISTAS / BADGES
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          'CONQUISTAS RECENTES',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 1.2,
-                            color: Colors.grey.shade500,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Column(
-                        children: [
-                          _buildBadgeItem(
-                            icon: Icons.health_and_safety_rounded,
-                            title: 'Protetor Gástrico',
-                            subtitle: 'Receitou medicação de suporte com sucesso.',
-                            color: const Color(0xFF4CAF50),
-                          ),
-                          const SizedBox(height: 12),
-                          _buildBadgeItem(
-                            icon: Icons.warning_rounded,
-                            title: 'Olho Clínico',
-                            subtitle: 'Evitou uma interação medicamentosa grave.',
-                            color: const Color(0xFFF44336),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 40),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+  void _signOut(BuildContext context) async {
+    await FirebaseAuth.instance.signOut();
+    if (!context.mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (context) => const AuthScreen()),
+      (Route<dynamic> route) => false,
     );
   }
 
-  // Widget construtor para os quadrados de Estatísticas
-  Widget _buildStatCard({required IconData icon, required Color iconColor, required String value, required String label}) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 15,
-              offset: const Offset(0, 8),
-            ),
-          ],
-        ),
-        child: Column(
+  void _showLogoutDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: const Row(
           children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: iconColor.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, color: iconColor, size: 24),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              value,
-              style: const TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w900,
-                color: Color(0xFF1E1B26),
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                color: Colors.grey.shade500,
-                height: 1.2,
-              ),
-            ),
+            Icon(Icons.warning_rounded, color: Colors.redAccent),
+            SizedBox(width: 10),
+            Text('Fim de Turno', style: TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF1E1B26), fontSize: 18)),
           ],
         ),
-      ),
-    );
-  }
-
-  // Widget construtor para as Conquistas
-  Widget _buildBadgeItem({required IconData icon, required String title, required String subtitle, required Color color}) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withValues(alpha: 0.2)),
-        boxShadow: [
-          BoxShadow(
-            color: color.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+        content: const Text('Vais desvincular a tua Cédula Profissional. Confirmas?', style: TextStyle(fontWeight: FontWeight.w600, color: Colors.black87)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('MANTER NO BALCÃO', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold, fontSize: 12)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+            ),
+            onPressed: () {
+              Navigator.pop(context);
+              _signOut(context);
+            },
+            child: const Text('SAIR DO SISTEMA', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 12)),
           ),
         ],
       ),
-      child: Row(
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const primary = Color(0xFF673AB7);
+    const secondary = Color(0xFF512DA8);
+
+    final String displayName = _isLoadingName ? 'A carregar...' : _firestoreUserName;
+    final String careerTitle = ProgressManager().careerTitle;
+    final String audienceName = ProgressManager().audienceName;
+
+    final int xp = ProgressManager().currentXP;
+    final int lvl = ProgressManager().currentLevel;
+    final int nextXp = ProgressManager().nextLevelXP;
+    final double progress = nextXp > 0 ? (xp / nextXp) : 0.0;
+    final int missingXp = nextXp > xp ? (nextXp - xp) : 0;
+
+    final String totalCuras = "0"; 
+    final String taxaPrecisao = "0%";
+    final String diasSeguidos = "0";
+
+    return Scaffold(
+      backgroundColor: const Color(0xFF1E1B26), 
+      body: Stack(
         children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, color: color, size: 24),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
+          Positioned(top: -50, right: -50, child: _buildMolecule(primary.withValues(alpha: 0.15), 200)),
+          Positioned(bottom: 100, left: -80, child: _buildMolecule(const Color(0xFF2196F3).withValues(alpha: 0.1), 250)),
+          
+          SafeArea(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF1E1B26),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.grey.shade600,
-                    height: 1.3,
+                // CABEÇALHO
+Padding(
+  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+  child: Row(
+    mainAxisAlignment: MainAxisAlignment.spaceBetween, // <--- Isto empurra os elementos para as pontas opostas
+    children: [
+      IconButton(
+        onPressed: () => Navigator.pop(context),
+        icon: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.1), shape: BoxShape.circle),
+          child: const Icon(Icons.arrow_back_rounded, color: Colors.white, size: 20),
+        ),
+      ),
+      IconButton(
+        onPressed: () => _showLogoutDialog(context),
+        icon: const Icon(Icons.power_settings_new_rounded, color: Colors.redAccent, size: 24),
+      ),
+    ],
+  ),
+),
+
+                Expanded(
+                  child: SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    child: FadeTransition(
+                      opacity: _fadeAnim,
+                      child: SlideTransition(
+                        position: _slideAnim,
+                        child: Center(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 500),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+                              child: Column(
+                                children: [
+                                  // AVATAR CÁPSULA
+                                  Container(
+                                    width: 110,
+                                    height: 150,
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(60),
+                                      gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF9575CD), secondary]),
+                                      boxShadow: [
+                                        BoxShadow(color: primary.withValues(alpha: 0.5), blurRadius: 30, offset: const Offset(0, 10)),
+                                      ],
+                                      border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 3),
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        displayName.isNotEmpty ? displayName[0].toUpperCase() : 'F',
+                                        style: const TextStyle(fontSize: 56, fontWeight: FontWeight.w900, color: Colors.white),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 24),
+                                  
+                                  // NOME / NICKNAME
+                                  Text(
+                                    displayName,
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -0.5),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  
+                                  // NÚMERO DE CÉDULA OFICIAL
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      const Icon(Icons.verified_rounded, size: 14, color: Colors.cyanAccent),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        _playerLicenseId,
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w800,
+                                          color: Colors.cyanAccent.withValues(alpha: 0.9),
+                                          letterSpacing: 1.2,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 16),
+                                  
+                                  // TAG CARREIRA E PÚBLICO
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                                    decoration: BoxDecoration(
+                                      color: Colors.black.withValues(alpha: 0.3),
+                                      borderRadius: BorderRadius.circular(30),
+                                      border: Border.all(color: primary.withValues(alpha: 0.4)),
+                                      boxShadow: [BoxShadow(color: primary.withValues(alpha: 0.1), blurRadius: 10)],
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(Icons.military_tech_rounded, size: 16, color: Colors.amber.shade400),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          careerTitle.toUpperCase(),
+                                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: 0.5),
+                                        ),
+                                        Container(
+                                          margin: const EdgeInsets.symmetric(horizontal: 12),
+                                          width: 4, height: 4,
+                                          decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.3), shape: BoxShape.circle),
+                                        ),
+                                        Icon(Icons.group_rounded, size: 16, color: Colors.cyanAccent.shade400),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          audienceName.toUpperCase(),
+                                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: 0.5),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 40),
+
+                                  // BARRA DE XP
+                                  Container(
+                                    padding: const EdgeInsets.all(24),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withValues(alpha: 0.03),
+                                      borderRadius: BorderRadius.circular(30),
+                                      border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                                    ),
+                                    child: Column(
+                                      children: [
+                                        Row(
+                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            Row(
+                                              children: [
+                                                const Icon(Icons.auto_awesome, color: Colors.amberAccent, size: 20),
+                                                const SizedBox(width: 8),
+                                                Text('NÍVEL $lvl', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Colors.white)),
+                                              ],
+                                            ),
+                                            Text('$xp / $nextXp XP', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Colors.white70)),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 20),
+                                        
+                                        Container(
+                                          height: 22,
+                                          width: double.infinity,
+                                          padding: const EdgeInsets.all(2),
+                                          decoration: BoxDecoration(
+                                            color: Colors.black54,
+                                            borderRadius: BorderRadius.circular(12),
+                                            border: Border.all(color: Colors.white24, width: 1.5),
+                                          ),
+                                          child: Stack(
+                                            children: [
+                                              FractionallySizedBox(
+                                                alignment: Alignment.centerLeft,
+                                                widthFactor: progress.clamp(0.0, 1.0),
+                                                child: Container(
+                                                  decoration: BoxDecoration(
+                                                    borderRadius: BorderRadius.circular(8),
+                                                    gradient: const LinearGradient(colors: [Color(0xFF00E5FF), Color(0xFF651FFF)]),
+                                                    boxShadow: [
+                                                      BoxShadow(color: const Color(0xFF00E5FF).withValues(alpha: 0.6), blurRadius: 10),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        const SizedBox(height: 16),
+                                        Text(
+                                          'Faltam $missingXp mg de Princípio Ativo para a próxima evolução.', 
+                                          textAlign: TextAlign.center,
+                                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white54, letterSpacing: 0.5),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 32),
+
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                                    children: [
+                                      _buildCapsuleStat(icon: Icons.science_rounded, value: totalCuras, label: 'Curas', color: Colors.cyanAccent),
+                                      _buildCapsuleStat(icon: Icons.radar_rounded, value: taxaPrecisao, label: 'Precisão', color: Colors.amberAccent),
+                                      _buildCapsuleStat(icon: Icons.local_fire_department_rounded, value: diasSeguidos, label: 'Dias', color: Colors.deepOrangeAccent),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 40),
+
+                                  const Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: Text('MOLÉCULAS DESBLOQUEADAS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 2.0, color: Colors.white54)),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  
+                                  Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.all(28),
+                                    alignment: Alignment.center,
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withValues(alpha: 0.02),
+                                      borderRadius: BorderRadius.circular(20),
+                                      border: Border.all(color: Colors.white.withValues(alpha: 0.08), width: 1),
+                                    ),
+                                    child: const Column(
+                                      children: [
+                                        Icon(Icons.biotech_rounded, color: Colors.white24, size: 36),
+                                        SizedBox(height: 12),
+                                        Text(
+                                          'Ainda não sintetizaste nenhuma molécula rara.',
+                                          style: TextStyle(color: Colors.white54, fontSize: 13, fontWeight: FontWeight.w600),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  
+                                  const SizedBox(height: 60),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMolecule(Color color, double size) {
+    return Transform.rotate(
+      angle: math.pi / 4,
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(size / 3),
+          border: Border.all(color: color, width: 4),
+        ),
+        child: Center(
+          child: Container(
+            width: size / 2, height: size / 2,
+            decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: color, width: 4)),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCapsuleStat({required IconData icon, required String value, required String label, required Color color}) {
+    return Container(
+      width: 90,
+      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.03),
+        borderRadius: BorderRadius.circular(50), 
+        border: Border.all(color: color.withValues(alpha: 0.25), width: 2),
+        boxShadow: [BoxShadow(color: color.withValues(alpha: 0.05), blurRadius: 20)],
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: color, size: 28),
+          const SizedBox(height: 16),
+          Text(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white)),
+          const SizedBox(height: 4),
+          Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Colors.white70, letterSpacing: 1.0)),
         ],
       ),
     );

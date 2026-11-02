@@ -1,16 +1,1 @@
-{
-  "hosting": {
-    "public": "build/web",
-    "ignore": [
-      "firebase.json",
-      "**/.*",
-      "**/node_modules/**"
-    ],
-    "rewrites": [
-      {
-        "source": "**",
-        "destination": "/index.html"
-      }
-    ]
-  }
-}
+{"hosting":{"public":"build/web","ignore":["firebase.json","**/.*","**/node_modules/**"],"rewrites":[{"source":"**","destination":"/index.html"}]},"flutter":{"platforms":{"dart":{"lib/firebase_options.dart":{"projectId":"pharma-inc-d6c8d","configurations":{"ios":"1:404973927098:ios:b8f843a4a65165761f6083","macos":"1:404973927098:ios:b8f843a4a65165761f6083","web":"1:404973927098:web:04b2e16f18379fd11f6083","windows":"1:404973927098:web:d67724a2e462195a1f6083"}}}}}}

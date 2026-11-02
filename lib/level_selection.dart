@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:carousel_slider/carousel_slider.dart';
-import 'quiz_screen.dart'; 
+import 'progress_manager.dart';
+import 'quiz_screen.dart';
 
 class LevelSelectionScreen extends StatefulWidget {
   const LevelSelectionScreen({super.key});
@@ -22,11 +23,11 @@ class _LevelSelectionScreenState extends State<LevelSelectionScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
-          'SELECIONAR TURNO',
+          'ESCOLHER PÚBLICO & MODO',
           style: TextStyle(
             color: Color(0xFF1E1B26),
             fontWeight: FontWeight.w900,
-            fontSize: 16,
+            fontSize: 15,
             letterSpacing: 1.2,
           ),
         ),
@@ -35,17 +36,182 @@ class _LevelSelectionScreenState extends State<LevelSelectionScreen> {
       body: Center(
         child: CarouselSlider(
           options: CarouselOptions(
-            height: 460.0, 
+            height: 460.0,
+            initialPage: ProgressManager().selectedAudience - 1,
             enlargeCenterPage: true,
             enableInfiniteScroll: false,
-            viewportFraction: 0.70, 
+            viewportFraction: 0.72,
           ),
           items: [
-            _buildMedicineBox(1, 'Nível 1', 'Literacia Básica', '100 mg', 'Jovens • Introdução', '10 cápsulas', const Color(0xFFFF5757), true),
-            _buildMedicineBox(2, 'Nível 2', 'Geral & Polimedicação', '200 mg', 'Comunidade e Seniores', '15 cápsulas', const Color(0xFFBCBCBC), true),
-            _buildMedicineBox(3, 'Nível 3', 'Conhecimento Básico', '300 mg', 'Técnicos Auxiliares', '20 cápsulas', const Color(0xFF72A7C3), true),
-            _buildMedicineBox(4, 'Nível 4', 'Conhecimento Avançado', '400 mg', 'Universitários', '20 cápsulas', const Color(0xFFFFC9EB), true),
-            _buildMedicineBox(5, 'Nível 5', 'Mundo Real', '500 mg', 'Farmacêuticos', '25 cápsulas', const Color(0xFF9769AA), true),
+            _buildMedicineBox(1, 'Nível 1', 'Reconhecer & Mitos', '100 mg', 'Juniores • Introdução', 'Modo Guiado', const Color(0xFFFF5757), true),
+            _buildMedicineBox(2, 'Nível 2', 'Dia a Dia & Rótulos', '200 mg', 'Comunidade e Seniores', 'Sem Tempo', const Color(0xFFBCBCBC), true),
+            _buildMedicineBox(3, 'Nível 3', 'Procedimento & Rigor', '300 mg', 'Técnicos Auxiliares (TAF)', 'Balcão & Receitas', const Color(0xFF72A7C3), true),
+            _buildMedicineBox(4, 'Nível 4', 'Analisar & Justificar', '400 mg', 'Universitários', 'Mecanismos', const Color(0xFFFFC9EB), true),
+            _buildMedicineBox(5, 'Nível 5', 'Decidir na Incerteza', '500 mg', 'Farmacêuticos', 'Risco-Benefício', const Color(0xFF9769AA), true),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showModeSelector(int levelNumber, String level, String category, Color color) {
+    final bool isOfficialAudience = ProgressManager().selectedAudience == levelNumber;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.all(24),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      '$level • $category',
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w900,
+                        color: Color(0xFF1E1B26),
+                      ),
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      isOfficialAudience ? 'O Teu Público' : 'Desafio Extra',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        color: color.computeLuminance() > 0.6 ? const Color(0xFF1E1B26) : color,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Escolhe a vertente em que queres jogar:',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.grey.shade600,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // OPÇÃO 1: MODO TEORIA (QUIZ)
+              _buildModeOption(
+                icon: Icons.style_rounded,
+                title: 'Modo Teoria (Quiz)',
+                subtitle: 'Perguntas de escolha múltipla e verdadeira/falso deste baralho.',
+                color: const Color(0xFF673AB7),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => QuizScreen(
+                        levelName: level,
+                        themeColor: color,
+                      ),
+                    ),
+                  );
+                },
+              ),
+
+              const SizedBox(height: 12),
+
+              // OPÇÃO 2: MODO PRÁTICA (CASOS QR)
+              _buildModeOption(
+                icon: Icons.qr_code_scanner_rounded,
+                title: 'Modo Prática (Casos QR)',
+                subtitle: 'Lê as cartas físicas QR e resolve casos clínicos adaptados a este nível.',
+                color: const Color(0xFF2E7D32),
+                onTap: () {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Leitor de Casos QR ($level) será ligado no próximo passo!'),
+                      backgroundColor: const Color(0xFF2E7D32),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 12),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildModeOption({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: color.withValues(alpha: 0.2), width: 1.5),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: color,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(icon, color: Colors.white, size: 26),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF1E1B26),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.shade700,
+                      height: 1.3,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.arrow_forward_ios_rounded, color: color, size: 16),
           ],
         ),
       ),
@@ -55,42 +221,23 @@ class _LevelSelectionScreenState extends State<LevelSelectionScreen> {
   Widget _buildMedicineBox(int levelNumber, String level, String theme, String dosage, String category, String pillCount, Color color, bool isUnlocked) {
     final Color cardColor = isUnlocked ? color : Colors.grey.shade400;
     final Color topTextColor = isUnlocked ? const Color(0xFF1E1B26) : Colors.grey.shade500;
-    
+
     final bool isLightColor = cardColor.computeLuminance() > 0.6;
     final Color bottomTextColor = isLightColor ? const Color(0xFF1E1B26) : Colors.white;
-    final Color bottomSubTextColor = isLightColor ? const Color(0xFF1E1B26).withOpacity(0.7) : Colors.white.withOpacity(0.8);
+    final Color bottomSubTextColor = isLightColor
+        ? const Color(0xFF1E1B26).withValues(alpha: 0.7)
+        : Colors.white.withValues(alpha: 0.8);
 
     return GestureDetector(
-      onTap: () {
-        if (levelNumber == 1 || levelNumber == 2) {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => QuizScreen(
-                levelName: level,
-                themeColor: color,
-              ),
-            ),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('$level em desenvolvimento para a próxima fase!'),
-              backgroundColor: cardColor,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            ),
-          );
-        }
-      },
+      onTap: () => _showModeSelector(levelNumber, level, category, cardColor),
       child: Container(
         margin: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(16), 
+          borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: cardColor.withOpacity(0.25),
+              color: cardColor.withValues(alpha: 0.25),
               blurRadius: 15,
               offset: const Offset(0, 8),
             ),
@@ -100,7 +247,6 @@ class _LevelSelectionScreenState extends State<LevelSelectionScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // METADE SUPERIOR (Branca)
             Expanded(
               flex: 4,
               child: Padding(
@@ -150,8 +296,6 @@ class _LevelSelectionScreenState extends State<LevelSelectionScreen> {
                 ),
               ),
             ),
-            
-            // METADE INFERIOR (Colorida)
             Expanded(
               flex: 6,
               child: Container(
@@ -166,7 +310,6 @@ class _LevelSelectionScreenState extends State<LevelSelectionScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Categoria/Público-alvo
                     Text(
                       category,
                       style: TextStyle(
@@ -175,10 +318,7 @@ class _LevelSelectionScreenState extends State<LevelSelectionScreen> {
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    
                     const Spacer(),
-                    
-                    // Pastilhas 3D
                     Center(
                       child: Wrap(
                         spacing: 8.0,
@@ -193,7 +333,7 @@ class _LevelSelectionScreenState extends State<LevelSelectionScreen> {
                               color: Colors.white,
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withOpacity(0.12),
+                                  color: Colors.black.withValues(alpha: 0.12),
                                   blurRadius: 6,
                                   offset: const Offset(-2, 2),
                                 ),
@@ -210,10 +350,7 @@ class _LevelSelectionScreenState extends State<LevelSelectionScreen> {
                         }),
                       ),
                     ),
-                    
                     const Spacer(),
-                    
-                    // Rodapé
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       crossAxisAlignment: CrossAxisAlignment.end,

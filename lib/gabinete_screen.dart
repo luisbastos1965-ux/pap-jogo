@@ -53,10 +53,6 @@ class GabineteScreen extends StatelessWidget {
           icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFF1E1B26)),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
-          'O GABINETE',
-          style: TextStyle(color: Color(0xFF1E1B26), fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: 1.2),
-        ),
         centerTitle: true,
       ),
       body: Padding(
