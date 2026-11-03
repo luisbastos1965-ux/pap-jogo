@@ -1,115 +1,155 @@
 import 'package:flutter/material.dart';
-import 'progress_manager.dart';
+import 'dart:math' as math;
 
 class GabineteScreen extends StatelessWidget {
   const GabineteScreen({super.key});
 
-  void _showResetDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: const Row(
-            children: [
-              Icon(Icons.warning_rounded, color: Colors.redAccent),
-              SizedBox(width: 10),
-              Text('Limpar Memória?'),
-            ],
-          ),
-          content: const Text('Todo o XP e níveis acumulados serão apagados. O sistema voltará ao estado inicial. Continuar?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('CANCELAR', style: TextStyle(color: Colors.grey)),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.redAccent,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-              onPressed: () {
-                // Chama a função de reset (vamos criá-la no ProgressManager a seguir)
-                ProgressManager().resetProgress();
-                Navigator.pop(context); // Fecha o dialog
-                Navigator.pop(context); // Volta ao menu inicial para atualizar a UI
-              },
-              child: const Text('LIMPAR', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
+    const primary = Color(0xFF673AB7);
+    const accentCyan = Color(0xFF00E5FF);
+    const accentGreen = Color(0xFF00E676);
+    const accentPink = Color(0xFFFF4081);
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF4EFFA),
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFF1E1B26)),
-          onPressed: () => Navigator.pop(context),
-        ),
-        centerTitle: true,
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('CRÉDITOS DA PAP', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF673AB7), letterSpacing: 1.5)),
-            const SizedBox(height: 16),
-            _buildCreditCard('Desenvolvimento & Conteúdo', 'Alunas do Curso Técnico de Farmácia\nEscola Profissional Profitecla do Porto', Icons.science_rounded),
-            const SizedBox(height: 12),
-            _buildCreditCard('Orientação Tecnológica', 'Professor Luís Bastos', Icons.code_rounded),
-            
-            const Spacer(),
-            
-            const Text('SISTEMA', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.redAccent, letterSpacing: 1.5)),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              height: 56,
-              child: OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.redAccent,
-                  side: const BorderSide(color: Colors.redAccent, width: 2),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      backgroundColor: const Color(0xFF1E1B26),
+      body: Stack(
+        children: [
+          Positioned(top: -60, right: -60, child: _buildMolecule(primary.withValues(alpha: 0.12), 220)),
+          Positioned(bottom: 50, left: -70, child: _buildMolecule(accentCyan.withValues(alpha: 0.08), 260)),
+          
+          SafeArea(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        onPressed: () => Navigator.pop(context),
+                        icon: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.1), shape: BoxShape.circle),
+                          child: const Icon(Icons.arrow_back_rounded, color: Colors.white, size: 20),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                icon: const Icon(Icons.delete_forever_rounded),
-                label: const Text('LIMPAR PROGRESSO DO ESTAGIÁRIO', style: TextStyle(fontWeight: FontWeight.bold)),
-                onPressed: () => _showResetDialog(context),
-              ),
+                
+                Expanded(
+                  child: SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Gabinete',
+                          style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -0.5),
+                        ),
+                        const SizedBox(height: 4),
+                        
+                        _buildCreditCard(
+                          'Autoras do Projeto', 
+                          'Ana Rodrigues, Catarina Almeida, Mafalda Cruz e Duda Fernandes',
+                          'Alunas do Curso Técnico de Farmácia', 
+                          Icons.science_rounded, 
+                          primary
+                        ),
+                        const SizedBox(height: 12),
+                        
+                        _buildCreditCard(
+                          'Orientação e Desenvolvimento', 
+                          'Luís Bastos',
+                          'Professor Orientador e Arquiteto Digital', 
+                          Icons.developer_mode_rounded, 
+                          accentCyan
+                        ),
+                        const SizedBox(height: 12),
+                        
+                        _buildCreditCard(
+                          'Revisão Científica e Pedagógica', 
+                          'Bruno Ponte e Patrícia Franco',
+                          'Apoio teórico e validação de conteúdos', 
+                          Icons.fact_check_rounded, 
+                          accentGreen
+                        ),
+                        const SizedBox(height: 12),
+                        
+                        _buildCreditCard(
+                          'Agradecimentos Institucionais', 
+                          'Escola Profissional Profitecla do Porto',
+                          'A todas as entidades de aplicação prática e profissionais entrevistados pelo tempo cedido.', 
+                          Icons.account_balance_rounded, 
+                          accentPink
+                        ),
+                        
+                        const SizedBox(height: 40),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 32),
-          ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMolecule(Color color, double size) {
+    return Transform.rotate(
+      angle: math.pi / 4,
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(size / 3),
+          border: Border.all(color: color, width: 4),
+        ),
+        child: Center(
+          child: Container(
+            width: size / 2, height: size / 2,
+            decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: color, width: 4)),
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildCreditCard(String title, String subtitle, IconData icon) {
+  Widget _buildCreditCard(String title, String names, String role, IconData icon, Color highlightColor) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Colors.white.withValues(alpha: 0.03),
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: const Color(0xFF673AB7).withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 4))],
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start, // Alinha o ícone ao topo se o texto for longo
         children: [
-          CircleAvatar(backgroundColor: const Color(0xFF673AB7).withValues(alpha: 0.1), child: Icon(icon, color: const Color(0xFF673AB7))),
+          Container(
+            padding: const EdgeInsets.all(12),
+            margin: const EdgeInsets.only(top: 4), // Pequeno ajuste para alinhar com o título
+            decoration: BoxDecoration(
+              color: highlightColor.withValues(alpha: 0.15),
+              shape: BoxShape.circle,
+              border: Border.all(color: highlightColor.withValues(alpha: 0.3)),
+            ),
+            child: Icon(icon, color: highlightColor, size: 24),
+          ),
           const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                Text(title, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 11, color: Colors.white, letterSpacing: 1.2)),
+                const SizedBox(height: 8),
+                Text(names, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14, height: 1.3)),
                 const SizedBox(height: 4),
-                Text(subtitle, style: TextStyle(color: Colors.grey.shade600, fontSize: 12, height: 1.4)),
+                Text(role, style: const TextStyle(color: Colors.white60, fontStyle: FontStyle.italic, fontSize: 13, height: 1.4)),
               ],
             ),
           ),

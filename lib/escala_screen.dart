@@ -133,15 +133,6 @@ class _EscalaScreenState extends State<EscalaScreen>
                         ),
                       ),
                       const SizedBox(height: 4),
-                      const Text(
-                        'Consulta o desempenho clínico em tempo real.',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.white60,
-                        ),
-                      ),
-                      const SizedBox(height: 20),
                     ],
                   ),
                 ),

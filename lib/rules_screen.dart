@@ -257,18 +257,8 @@ class _RulesScreenState extends State<RulesScreen> with SingleTickerProviderStat
                         color: Colors.white,
                       ),
                     ),
-                    Text(
-                      'DIRETIVA // $index',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w900,
-                        color: accentColor,
-                        letterSpacing: 1.0,
-                      ),
-                    ),
                   ],
                 ),
-                const SizedBox(height: 8),
                 Text(
                   description,
                   style: const TextStyle(

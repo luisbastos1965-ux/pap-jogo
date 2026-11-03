@@ -185,16 +185,42 @@ Padding(
                                     height: 150,
                                     decoration: BoxDecoration(
                                       borderRadius: BorderRadius.circular(60),
-                                      gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF9575CD), secondary]),
+                                      gradient: LinearGradient(
+                                        begin: Alignment.topCenter,
+                                        end: Alignment.bottomCenter,
+                                        colors: [
+                                          const Color(0xFF9575CD), // Metade superior
+                                          secondary,               // Metade inferior
+                                        ],
+                                        stops: const [0.5, 0.5], // Cria o corte seco bicolor da cápsula
+                                      ),
                                       boxShadow: [
-                                        BoxShadow(color: primary.withValues(alpha: 0.5), blurRadius: 30, offset: const Offset(0, 10)),
+                                        BoxShadow(
+                                          color: primary.withValues(alpha: 0.5), 
+                                          blurRadius: 30, 
+                                          offset: const Offset(0, 10),
+                                        ),
                                       ],
-                                      border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 3),
+                                      border: Border.all(
+                                        color: Colors.white.withValues(alpha: 0.3), // Aumentado ligeiramente para simular brilho do plástico
+                                        width: 3,
+                                      ),
                                     ),
                                     child: Center(
                                       child: Text(
                                         displayName.isNotEmpty ? displayName[0].toUpperCase() : 'F',
-                                        style: const TextStyle(fontSize: 56, fontWeight: FontWeight.w900, color: Colors.white),
+                                        style: const TextStyle(
+                                          fontSize: 56, 
+                                          fontWeight: FontWeight.w900, 
+                                          color: Colors.white,
+                                          shadows: [
+                                            Shadow(
+                                              color: Colors.black45, // Garante que a letra se lê perfeitamente por cima da linha de corte
+                                              blurRadius: 6,
+                                              offset: Offset(0, 2),
+                                            ),
+                                          ],
+                                        ),
                                       ),
                                     ),
                                   ),
