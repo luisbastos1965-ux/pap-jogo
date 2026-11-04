@@ -21,6 +21,33 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
   String _playerLicenseId = 'PI-0000';
   bool _isLoadingName = true;
 
+  // Cores da cápsula (guardadas no Firestore: users/{uid}.capsuleTop / capsuleBottom)
+  static const Color _defaultCapsuleTop = Color(0xFF9575CD);
+  static const Color _defaultCapsuleBottom = Color(0xFF512DA8);
+  Color _capsuleTop = _defaultCapsuleTop;
+  Color _capsuleBottom = _defaultCapsuleBottom;
+
+  static const List<Color> _capsulePalette = [
+    Color(0xFF9575CD), // lilás
+    Color(0xFF512DA8), // roxo escuro
+    Color(0xFF42A5F5), // azul claro
+    Color(0xFF1565C0), // azul
+    Color(0xFF00BCD4), // ciano
+    Color(0xFF0097A7), // ciano escuro
+    Color(0xFF26A69A), // turquesa
+    Color(0xFF00796B), // verde-água
+    Color(0xFF66BB6A), // verde
+    Color(0xFF388E3C), // verde escuro
+    Color(0xFFFFA726), // laranja
+    Color(0xFFEF6C00), // laranja escuro
+    Color(0xFFEF5350), // vermelho
+    Color(0xFFC62828), // vermelho escuro
+    Color(0xFFEC407A), // rosa
+    Color(0xFFAD1457), // magenta
+    Color(0xFF8D6E63), // castanho
+    Color(0xFF455A64), // cinza-azulado
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -41,9 +68,13 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
         
         final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
         if (doc.exists && doc.data() != null) {
+          if (!mounted) return;
+          final data = doc.data()!;
           setState(() {
-            _firestoreUserName = doc.data()!['name'] ?? user.displayName ?? 'Farmacêutico';
+            _firestoreUserName = data['name'] ?? user.displayName ?? 'Farmacêutico';
             _playerLicenseId = 'REG. Nº #$shortUid';
+            _capsuleTop = _colorFromData(data['capsuleTop']) ?? _defaultCapsuleTop;
+            _capsuleBottom = _colorFromData(data['capsuleBottom']) ?? _defaultCapsuleBottom;
             _isLoadingName = false;
           });
           return;
@@ -60,6 +91,33 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
         _playerLicenseId = 'REG. Nº #PI-2027';
         _isLoadingName = false;
       });
+    }
+  }
+
+  Color? _colorFromData(dynamic raw) {
+    if (raw is num) return Color(raw.toInt());
+    return null;
+  }
+
+  Future<void> _saveCapsuleColors(Color top, Color bottom) async {
+    // Atualiza logo no ecrã e grava em segundo plano
+    setState(() {
+      _capsuleTop = top;
+      _capsuleBottom = bottom;
+    });
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+        'capsuleTop': top.toARGB32(),
+        'capsuleBottom': bottom.toARGB32(),
+      }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('Erro ao guardar cores da cápsula: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Não foi possível guardar as cores. Tenta de novo.')),
+      );
     }
   }
 
@@ -117,7 +175,6 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
   @override
   Widget build(BuildContext context) {
     const primary = Color(0xFF673AB7);
-    const secondary = Color(0xFF512DA8);
 
     final String displayName = _isLoadingName ? 'A carregar...' : _firestoreUserName;
     final String careerTitle = ProgressManager().careerTitle;
@@ -179,49 +236,31 @@ Padding(
                               padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
                               child: Column(
                                 children: [
-                                  // AVATAR CÁPSULA
-                                  Container(
-                                    width: 110,
-                                    height: 150,
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(60),
-                                      gradient: LinearGradient(
-                                        begin: Alignment.topCenter,
-                                        end: Alignment.bottomCenter,
-                                        colors: [
-                                          const Color(0xFF9575CD), // Metade superior
-                                          secondary,               // Metade inferior
-                                        ],
-                                        stops: const [0.5, 0.5], // Cria o corte seco bicolor da cápsula
-                                      ),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: primary.withValues(alpha: 0.5), 
-                                          blurRadius: 30, 
-                                          offset: const Offset(0, 10),
+                                  // AVATAR CÁPSULA (toca para personalizar as cores)
+                                  GestureDetector(
+                                    onTap: _isLoadingName ? null : () => _showCapsuleEditor(displayName),
+                                    child: Stack(
+                                      clipBehavior: Clip.none,
+                                      children: [
+                                        _buildCapsuleAvatar(
+                                          letter: displayName.isNotEmpty ? displayName[0].toUpperCase() : 'F',
+                                          top: _capsuleTop,
+                                          bottom: _capsuleBottom,
+                                        ),
+                                        Positioned(
+                                          right: -4,
+                                          bottom: 8,
+                                          child: Container(
+                                            padding: const EdgeInsets.all(8),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFF1E1B26),
+                                              shape: BoxShape.circle,
+                                              border: Border.all(color: Colors.cyanAccent.withValues(alpha: 0.6), width: 1.5),
+                                            ),
+                                            child: const Icon(Icons.palette_rounded, size: 16, color: Colors.cyanAccent),
+                                          ),
                                         ),
                                       ],
-                                      border: Border.all(
-                                        color: Colors.white.withValues(alpha: 0.3), // Aumentado ligeiramente para simular brilho do plástico
-                                        width: 3,
-                                      ),
-                                    ),
-                                    child: Center(
-                                      child: Text(
-                                        displayName.isNotEmpty ? displayName[0].toUpperCase() : 'F',
-                                        style: const TextStyle(
-                                          fontSize: 56, 
-                                          fontWeight: FontWeight.w900, 
-                                          color: Colors.white,
-                                          shadows: [
-                                            Shadow(
-                                              color: Colors.black45, // Garante que a letra se lê perfeitamente por cima da linha de corte
-                                              blurRadius: 6,
-                                              offset: Offset(0, 2),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
                                     ),
                                   ),
                                   const SizedBox(height: 24),
@@ -402,6 +441,203 @@ Padding(
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildCapsuleAvatar({
+    required String letter,
+    required Color top,
+    required Color bottom,
+    double width = 110,
+    double height = 150,
+    double fontSize = 56,
+  }) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(width * 60 / 110),
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            top,    // Metade superior
+            bottom, // Metade inferior
+          ],
+          stops: const [0.5, 0.5], // Cria o corte seco bicolor da cápsula
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: bottom.withValues(alpha: 0.5),
+            blurRadius: 30,
+            offset: const Offset(0, 10),
+          ),
+        ],
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.3), // simula o brilho do plástico
+          width: 3,
+        ),
+      ),
+      child: Center(
+        child: Text(
+          letter,
+          style: TextStyle(
+            fontSize: fontSize,
+            fontWeight: FontWeight.w900,
+            color: Colors.white,
+            shadows: const [
+              Shadow(
+                color: Colors.black45, // Garante que a letra se lê por cima da linha de corte
+                blurRadius: 6,
+                offset: Offset(0, 2),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildColorRow(String label, Color selected, ValueChanged<Color> onSelect) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 2.0, color: Colors.white54),
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: _capsulePalette.map((c) {
+            final bool isSelected = c == selected;
+            return GestureDetector(
+              onTap: () => onSelect(c),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: c,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: isSelected ? Colors.white : Colors.white24,
+                    width: isSelected ? 3 : 1,
+                  ),
+                ),
+                child: isSelected ? const Icon(Icons.check_rounded, size: 18, color: Colors.white) : null,
+              ),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+
+  void _showCapsuleEditor(String displayName) {
+    final String letter = displayName.isNotEmpty ? displayName[0].toUpperCase() : 'F';
+    Color tempTop = _capsuleTop;
+    Color tempBottom = _capsuleBottom;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF2A2635),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2)),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    const Center(
+                      child: Text(
+                        'PERSONALIZAR CÁPSULA',
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, letterSpacing: 2.0, color: Colors.white),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Center(
+                      child: _buildCapsuleAvatar(
+                        letter: letter,
+                        top: tempTop,
+                        bottom: tempBottom,
+                        width: 66,
+                        height: 90,
+                        fontSize: 34,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    _buildColorRow('PARTE SUPERIOR', tempTop, (c) => setSheetState(() => tempTop = c)),
+                    const SizedBox(height: 20),
+                    _buildColorRow('PARTE INFERIOR', tempBottom, (c) => setSheetState(() => tempBottom = c)),
+                    const SizedBox(height: 28),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.cyanAccent,
+                              side: BorderSide(color: Colors.cyanAccent.withValues(alpha: 0.5)),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                            ),
+                            onPressed: () {
+                              final rnd = math.Random();
+                              Color pick() => _capsulePalette[rnd.nextInt(_capsulePalette.length)];
+                              final Color newTop = pick();
+                              Color newBottom = pick();
+                              while (newBottom == newTop) {
+                                newBottom = pick();
+                              }
+                              setSheetState(() {
+                                tempTop = newTop;
+                                tempBottom = newBottom;
+                              });
+                            },
+                            icon: const Icon(Icons.casino_rounded, size: 18),
+                            label: const Text('ALEATÓRIO', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12)),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF673AB7),
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                            ),
+                            onPressed: () {
+                              _saveCapsuleColors(tempTop, tempBottom);
+                              Navigator.pop(sheetContext);
+                            },
+                            child: const Text('GUARDAR', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
