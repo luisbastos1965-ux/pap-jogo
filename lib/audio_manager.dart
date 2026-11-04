@@ -1,15 +1,39 @@
 import 'package:audioplayers/audioplayers.dart';
 import 'dart:async';
+import 'package:flutter/widgets.dart'; // Necessário para o ciclo de vida da app
 
-class AudioManager {
+class AudioManager with WidgetsBindingObserver {
   static final AudioManager _instance = AudioManager._internal();
   factory AudioManager() => _instance;
-  AudioManager._internal();
+  
+  AudioManager._internal() {
+    // 1. Regista este manager para ouvir quando a app é minimizada ou reaberta
+    WidgetsBinding.instance.addObserver(this);
+  }
 
   final AudioPlayer _bgmPlayer = AudioPlayer();
   String _currentTrack = '';
   Timer? _fadeTimer;
   bool isMuted = false;
+
+  // 2. OUVINTE DO SISTEMA OPERATIVO
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive || state == AppLifecycleState.hidden) {
+      // App foi minimizada ou o ecrã desligou-se
+      _bgmPlayer.pause();
+    } else if (state == AppLifecycleState.resumed) {
+      // Jogador voltou à app
+      if (!isMuted) {
+        _bgmPlayer.resume();
+      }
+    }
+  }
+
+  // (Opcional) Limpeza caso algum dia precises de destruir o manager
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+  }
 
   void toggleMute() {
     isMuted = !isMuted;

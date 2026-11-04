@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:carousel_slider/carousel_slider.dart';
+import 'dart:math' as math;
 import 'progress_manager.dart';
 import 'quiz_screen.dart';
 
@@ -11,10 +12,36 @@ class LevelSelectionScreen extends StatefulWidget {
 }
 
 class _LevelSelectionScreenState extends State<LevelSelectionScreen> {
+  
+  Widget _buildMolecule(Color color, double size) {
+    return Transform.rotate(
+      angle: math.pi / 4,
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(size / 3),
+          border: Border.all(color: color, width: 4),
+        ),
+        child: Center(
+          child: Container(
+            width: size / 2,
+            height: size / 2,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: color, width: 4),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
+      backgroundColor: const Color(0xFFF2F2F5),
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -22,198 +49,40 @@ class _LevelSelectionScreenState extends State<LevelSelectionScreen> {
           icon: const Icon(Icons.arrow_back_ios_new, color: Color(0xFF673AB7)),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
-          'ESCOLHER PÚBLICO & MODO',
-          style: TextStyle(
-            color: Color(0xFF1E1B26),
-            fontWeight: FontWeight.w900,
-            fontSize: 15,
-            letterSpacing: 1.2,
-          ),
-        ),
-        centerTitle: true,
+        title: null,
       ),
-      body: Center(
-        child: CarouselSlider(
-          options: CarouselOptions(
-            height: 460.0,
-            initialPage: ProgressManager().selectedAudience - 1,
-            enlargeCenterPage: true,
-            enableInfiniteScroll: false,
-            viewportFraction: 0.72,
+      body: Stack(
+        children: [
+          Positioned(
+            top: -40,
+            right: -60,
+            child: _buildMolecule(const Color(0xFF673AB7).withValues(alpha: 0.05), 220),
           ),
-          items: [
-            _buildMedicineBox(1, 'Nível 1', 'Reconhecer & Mitos', '100 mg', 'Juniores • Introdução', 'Modo Guiado', const Color(0xFFFF5757), true),
-            _buildMedicineBox(2, 'Nível 2', 'Dia a Dia & Rótulos', '200 mg', 'Comunidade e Seniores', 'Sem Tempo', const Color(0xFFBCBCBC), true),
-            _buildMedicineBox(3, 'Nível 3', 'Procedimento & Rigor', '300 mg', 'Técnicos Auxiliares (TAF)', 'Balcão & Receitas', const Color(0xFF72A7C3), true),
-            _buildMedicineBox(4, 'Nível 4', 'Analisar & Justificar', '400 mg', 'Universitários', 'Mecanismos', const Color(0xFFFFC9EB), true),
-            _buildMedicineBox(5, 'Nível 5', 'Decidir na Incerteza', '500 mg', 'Farmacêuticos', 'Risco-Benefício', const Color(0xFF9769AA), true),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showModeSelector(int levelNumber, String level, String category, Color color) {
-    final bool isOfficialAudience = ProgressManager().selectedAudience == levelNumber;
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        return Container(
-          padding: const EdgeInsets.all(24),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          Positioned(
+            bottom: 100,
+            left: -70,
+            child: _buildMolecule(const Color(0xFF673AB7).withValues(alpha: 0.03), 260),
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: Text(
-                      '$level • $category',
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w900,
-                        color: Color(0xFF1E1B26),
-                      ),
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      isOfficialAudience ? 'O Teu Público' : 'Desafio Extra',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        color: color.computeLuminance() > 0.6 ? const Color(0xFF1E1B26) : color,
-                      ),
-                    ),
-                  ),
-                ],
+          
+          Center(
+            child: CarouselSlider(
+              options: CarouselOptions(
+                height: 460.0,
+                initialPage: ProgressManager().selectedAudience - 1,
+                enlargeCenterPage: true,
+                enableInfiniteScroll: false,
+                viewportFraction: 0.72,
               ),
-              const SizedBox(height: 8),
-              Text(
-                'Escolhe a vertente em que queres jogar:',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Colors.grey.shade600,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              // OPÇÃO 1: MODO TEORIA (QUIZ)
-              _buildModeOption(
-                icon: Icons.style_rounded,
-                title: 'Modo Teoria (Quiz)',
-                subtitle: 'Perguntas de escolha múltipla e verdadeira/falso deste baralho.',
-                color: const Color(0xFF673AB7),
-                onTap: () {
-                  Navigator.pop(context);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => QuizScreen(
-                        levelName: level,
-                        themeColor: color,
-                      ),
-                    ),
-                  );
-                },
-              ),
-
-              const SizedBox(height: 12),
-
-              // OPÇÃO 2: MODO PRÁTICA (CASOS QR)
-              _buildModeOption(
-                icon: Icons.qr_code_scanner_rounded,
-                title: 'Modo Prática (Casos QR)',
-                subtitle: 'Lê as cartas físicas QR e resolve casos clínicos adaptados a este nível.',
-                color: const Color(0xFF2E7D32),
-                onTap: () {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Leitor de Casos QR ($level) será ligado no próximo passo!'),
-                      backgroundColor: const Color(0xFF2E7D32),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                },
-              ),
-              const SizedBox(height: 12),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildModeOption({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(18),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.06),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: color.withValues(alpha: 0.2), width: 1.5),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: color,
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Icon(icon, color: Colors.white, size: 26),
+              items: [
+                _buildMedicineBox(1, 'Nível 1', 'Reconhecer & Mitos', '100 mg', 'Juniores • Introdução', 'Modo Guiado', const Color(0xFFFF5757), true),
+                _buildMedicineBox(2, 'Nível 2', 'Dia a Dia & Rótulos', '200 mg', 'Comunidade e Seniores', 'Sem Tempo', const Color(0xFFBCBCBC), true),
+                _buildMedicineBox(3, 'Nível 3', 'Procedimento & Rigor', '300 mg', 'Técnicos Auxiliares (TAF)', 'Balcão & Receitas', const Color(0xFF72A7C3), true),
+                _buildMedicineBox(4, 'Nível 4', 'Analisar & Justificar', '400 mg', 'Universitários', 'Mecanismos', const Color(0xFFFFC9EB), true),
+                _buildMedicineBox(5, 'Nível 5', 'Decidir na Incerteza', '500 mg', 'Farmacêuticos', 'Risco-Benefício', const Color(0xFF9769AA), true),
+              ],
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFF1E1B26),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    subtitle,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey.shade700,
-                      height: 1.3,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Icon(Icons.arrow_forward_ios_rounded, color: color, size: 16),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -229,7 +98,20 @@ class _LevelSelectionScreenState extends State<LevelSelectionScreen> {
         : Colors.white.withValues(alpha: 0.8);
 
     return GestureDetector(
-      onTap: () => _showModeSelector(levelNumber, level, category, cardColor),
+      // AQUI ESTÁ A MAGIA: Navega direto para o QuizScreen!
+      onTap: () {
+        if (isUnlocked) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => QuizScreen(
+                levelName: level,
+                themeColor: cardColor,
+              ),
+            ),
+          );
+        }
+      },
       child: Container(
         margin: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(
@@ -352,17 +234,9 @@ class _LevelSelectionScreenState extends State<LevelSelectionScreen> {
                     ),
                     const Spacer(),
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      mainAxisAlignment: MainAxisAlignment.end,
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        Text(
-                          pillCount,
-                          style: TextStyle(
-                            color: bottomTextColor,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
                         Text(
                           'Pharma Inc.',
                           style: TextStyle(

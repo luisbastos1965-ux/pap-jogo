@@ -128,8 +128,8 @@ class _RulesScreenState extends State<RulesScreen> with SingleTickerProviderStat
                                   _buildProtocolCard(
                                     index: '03',
                                     title: '3. Progressão de Carreira',
-                                    description: 'Diagnósticos corretos dão-te Pontos de Experiência (XP). Acumula XP para subires de escalão no teu Perfil Clínico.',
-                                    icon: Icons.stars_rounded,
+                                    description: 'Diagnósticos corretos dão-te Miligramas de Princípio Ativo (mg). Acumula mg para subires de escalão no teu Perfil Clínico.',
+                                    icon: Icons.science_rounded, // Ícone atualizado para tema científico
                                     accentColor: Colors.amberAccent,
                                   ),
                                   const SizedBox(height: 20),

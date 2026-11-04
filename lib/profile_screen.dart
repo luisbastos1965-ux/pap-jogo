@@ -302,12 +302,12 @@ Padding(
                                           children: [
                                             Row(
                                               children: [
-                                                const Icon(Icons.auto_awesome, color: Colors.amberAccent, size: 20),
+                                                const Icon(Icons.medication_liquid_rounded, color: Colors.amberAccent, size: 20), // Ícone farmacêutico!
                                                 const SizedBox(width: 8),
                                                 Text('NÍVEL $lvl', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Colors.white)),
                                               ],
                                             ),
-                                            Text('$xp / $nextXp XP', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Colors.white70)),
+                                            Text('$xp / $nextXp mg', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: Colors.cyanAccent)),
                                           ],
                                         ),
                                         const SizedBox(height: 20),

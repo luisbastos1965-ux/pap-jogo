@@ -14,8 +14,8 @@ import 'profile_screen.dart';
 import 'gabinete_screen.dart';
 import 'escala_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:sensors_plus/sensors_plus.dart';
-import 'dart:math' as math;
+import 'dica_balcao_card.dart'; // NOVO IMPORT DA NOSSA CARTA
+import 'pratica_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -79,6 +79,17 @@ class PharmaIncApp extends StatelessWidget {
         textTheme: GoogleFonts.poppinsTextTheme(),
         scaffoldBackgroundColor: const Color(0xFF1E1B26),
         primaryColor: const Color(0xFF673AB7),
+        
+        // ADICIONA AS TRANSIÇÕES GLOBAIS AQUI
+        pageTransitionsTheme: const PageTransitionsTheme(
+          builders: <TargetPlatform, PageTransitionsBuilder>{
+            TargetPlatform.android: FadeUpwardsPageTransitionsBuilder(),
+            TargetPlatform.iOS: FadeUpwardsPageTransitionsBuilder(),
+            TargetPlatform.windows: FadeUpwardsPageTransitionsBuilder(),
+            TargetPlatform.macOS: FadeUpwardsPageTransitionsBuilder(),
+            TargetPlatform.linux: FadeUpwardsPageTransitionsBuilder(),
+          },
+        ),
       ),
       home: const SplashScreen(),
     );
@@ -205,32 +216,12 @@ class _MenuScreenState extends State<MenuScreen> with SingleTickerProviderStateM
   late AnimationController _controller;
   late Animation<double> _animation;
   bool _isBgmStarted = false;
-  
-  // Lógica do Agitar (Shake)
-  StreamSubscription<AccelerometerEvent>? _accelerometerSubscription;
-  DateTime _lastShake = DateTime.now();
-  
-  final List<String> _dicas = [
-    'O paracetamol tem um limite diário seguro de 4g para adultos.',
-    'O ibuprofeno deve ser tomado de estômago cheio para evitar irritação gástrica.',
-    'Os antibióticos perdem eficácia se a toma não for concluída, mesmo sem sintomas.',
-    'A vitamina C melhora significativamente a absorção de ferro quando tomados juntos.',
-    'Descongestionantes nasais não devem ser usados mais de 5 a 7 dias seguidos.',
-    'O ácido fólico é crucial no 1º trimestre de gravidez para proteger o tubo neural.',
-    'Probióticos devem ser tomados com 2 horas de intervalo da toma do antibiótico.',
-    'Antiácidos podem inibir a absorção de outros medicamentos de toma regular.',
-    'Xaropes para tosse seca não devem ser aconselhados para tosse com expetoração.',
-    'A melatonina ajuda a induzir o sono, mas não atua como um sedativo forte.'
-  ];
-  late String _dicaAtual;
 
   @override
   void initState() {
     super.initState();
     AudioManager().playCrossfade('bgm.mp3');
     
-    _dicaAtual = _dicas[0]; // Dica inicial
-
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 2),
@@ -239,32 +230,11 @@ class _MenuScreenState extends State<MenuScreen> with SingleTickerProviderStateM
     _animation = Tween<double>(begin: -6, end: 6).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeInOutSine),
     );
-
-    // Ativa a deteção de movimento
-    _accelerometerSubscription = accelerometerEventStream().listen((AccelerometerEvent event) {
-      // Calcula a força do movimento (Magnitude)
-      double acceleration = math.sqrt(
-          event.x * event.x + event.y * event.y + event.z * event.z);
-          
-      // Se a força for maior que 20 (agitar forte) e já passou 1 segundo desde o último agito
-      if (acceleration > 20 && DateTime.now().difference(_lastShake).inSeconds > 1) {
-        _lastShake = DateTime.now();
-        setState(() {
-          // Escolhe uma dica aleatória diferente da atual
-          String novaDica;
-          do {
-            novaDica = _dicas[math.Random().nextInt(_dicas.length)];
-          } while (novaDica == _dicaAtual);
-          _dicaAtual = novaDica;
-        });
-      }
-    });
   }
 
   @override
   void dispose() {
     _controller.dispose();
-    _accelerometerSubscription?.cancel();
     super.dispose();
   }
 
@@ -321,7 +291,6 @@ class _MenuScreenState extends State<MenuScreen> with SingleTickerProviderStateM
                         children: [
                           Row(
                             children: [
-                              // Mini-Avatar Luminoso com Inicial
                               Container(
                                 width: 40,
                                 height: 40,
@@ -364,7 +333,6 @@ class _MenuScreenState extends State<MenuScreen> with SingleTickerProviderStateM
                               Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  // Linha 1: Identidade e Público
                                   Text.rich(
                                     TextSpan(
                                       children: [
@@ -380,7 +348,6 @@ class _MenuScreenState extends State<MenuScreen> with SingleTickerProviderStateM
                                     ),
                                   ),
                                   const SizedBox(height: 2),
-                                  // Linha 2: Cargo e Progressão (Agrupados)
                                   Text(
                                     '${ProgressManager().careerTitle} • Nível ${ProgressManager().currentLevel} (${ProgressManager().currentXP} XP)',
                                     style: const TextStyle(fontWeight: FontWeight.w700, color: Colors.white60, fontSize: 11),
@@ -390,7 +357,6 @@ class _MenuScreenState extends State<MenuScreen> with SingleTickerProviderStateM
                             ],
                           ),
                           
-                          // Botão de Som Glassmorphism
                           Container(
                             decoration: BoxDecoration(
                               color: Colors.white.withValues(alpha: 0.05),
@@ -415,67 +381,8 @@ class _MenuScreenState extends State<MenuScreen> with SingleTickerProviderStateM
 
                       const SizedBox(height: 28),
 
-                      // NOVO CARTÃO DE DICA (Sem título extra, focado no conteúdo e instrução)
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.03),
-                          borderRadius: BorderRadius.circular(18),
-                          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-                          boxShadow: [
-                            BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 16, offset: const Offset(0, 6)),
-                          ],
-                        ),
-                        child: Column(
-                          children: [
-                            Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(10),
-                                  decoration: BoxDecoration(
-                                    color: primary.withValues(alpha: 0.15),
-                                    shape: BoxShape.circle,
-                                    border: Border.all(color: primary.withValues(alpha: 0.3)),
-                                  ),
-                                  child: const Icon(Icons.lightbulb_rounded, color: accentCyan, size: 20),
-                                ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: AnimatedSwitcher(
-                                    duration: const Duration(milliseconds: 300),
-                                    child: Text(
-                                      _dicaAtual,
-                                      key: ValueKey<String>(_dicaAtual),
-                                      style: const TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
-                                        color: Colors.white,
-                                        height: 1.4,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.end,
-                              children: [
-                                Icon(Icons.screen_rotation_rounded, color: Colors.white.withValues(alpha: 0.3), size: 12),
-                                const SizedBox(width: 4),
-                                Text(
-                                  'Agita o telemóvel para trocar',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w700,
-                                    color: Colors.white.withValues(alpha: 0.3),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
+                      // COMPONENTE EXTRAÍDO (A Dica e os Sensores vivem agora no seu próprio ficheiro)
+                      const DicaBalcaoCard(),
 
                       const SizedBox(height: 48), 
 
@@ -500,37 +407,98 @@ class _MenuScreenState extends State<MenuScreen> with SingleTickerProviderStateM
 
                       const SizedBox(height: 48),
 
+                      // CÁPSULA DE SELEÇÃO DE MODO (TEORIA VS PRÁTICA)
                       Container(
-                        width: double.infinity,
-                        height: 56,
+                        height: 70,
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(50),
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFF7E57C2), Color(0xFF512DA8)],
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                          ),
                           boxShadow: [
-                            BoxShadow(color: const Color(0xFF512DA8).withValues(alpha: 0.5), blurRadius: 15, offset: const Offset(0, 5)),
-                          ],
+                            BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 20, offset: const Offset(0, 8)),
+                          ]
                         ),
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.transparent,
-                            shadowColor: Colors.transparent,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(50)),
-                          ),
-                          onPressed: () async {
-                            await Navigator.push(
-                              context,
-                              MaterialPageRoute(builder: (context) => const LevelSelectionScreen()),
-                            );
-                            setState(() {});
-                          },
-                          child: const Text(
-                            'ENTRAR AO BALCÃO',
-                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 1.5, color: Colors.white),
-                          ),
+                        child: Row(
+                          children: [
+                            // METADE ESQUERDA: TEORIA (Roxo)
+                            Expanded(
+                              child: GestureDetector(
+                                onTap: () async {
+                                  await Navigator.push(
+                                    context,
+                                    MaterialPageRoute(builder: (context) => const LevelSelectionScreen()),
+                                  );
+                                  setState(() {});
+                                },
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    borderRadius: const BorderRadius.horizontal(left: Radius.circular(50)),
+                                    gradient: const LinearGradient(
+                                      colors: [Color(0xFF7E57C2), Color(0xFF512DA8)],
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                    ),
+                                    border: Border.all(color: Colors.white.withValues(alpha: 0.15), width: 1.5),
+                                  ),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Column(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        crossAxisAlignment: CrossAxisAlignment.end, // Texto alinhado à direita (junto ao centro)
+                                        children: [
+                                          const Text('TEORIA', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 14, letterSpacing: 1.0)),
+                                          Text('Simulador', style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontWeight: FontWeight.w700, fontSize: 10)),
+                                        ],
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Icon(Icons.style_rounded, color: Colors.white.withValues(alpha: 0.9), size: 26),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                            
+                            // VINCO DA CÁPSULA (Fenda central do comprimido)
+                            Container(width: 2, color: const Color(0xFF1E1B26)),
+
+                            // METADE DIREITA: PRÁTICA (Cyan Néon)
+                            Expanded(
+                              child: GestureDetector(
+                                onTap: () {
+                                  // JÁ CHAMA O NOVO ECRÃ!
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(builder: (context) => const PraticaScreen()),
+                                  );
+                                },
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    borderRadius: const BorderRadius.horizontal(right: Radius.circular(50)),
+                                    gradient: const LinearGradient(
+                                      colors: [Color(0xFF00E5FF), Color(0xFF00838F)],
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                    ),
+                                    border: Border.all(color: Colors.white.withValues(alpha: 0.15), width: 1.5),
+                                  ),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(Icons.qr_code_scanner_rounded, color: Colors.white.withValues(alpha: 0.9), size: 26),
+                                      const SizedBox(width: 12),
+                                      Column(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        crossAxisAlignment: CrossAxisAlignment.start, // Texto alinhado à esquerda (junto ao centro)
+                                        children: [
+                                          const Text('PRÁTICA', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 14, letterSpacing: 1.0)),
+                                          Text('Casos QR', style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontWeight: FontWeight.w700, fontSize: 10)),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
 
@@ -544,7 +512,6 @@ class _MenuScreenState extends State<MenuScreen> with SingleTickerProviderStateM
         ),
       ),
 
-      // DOCK FLUTUANTE INFERIOR (Dark / Glassmorphism)
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       floatingActionButton: Column(
         mainAxisSize: MainAxisSize.min,

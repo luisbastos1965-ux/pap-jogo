@@ -4,6 +4,21 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:math' as math;
 import 'progress_manager.dart';
 
+/// Mapa central dos públicos (o número é o que fica guardado na base de dados).
+const Map<int, String> kAudienceNames = {
+  1: 'Jovens',
+  2: 'Comunidades e Seniores',
+  3: 'Técnicos Auxiliares de Farmácia',
+  4: 'Estudantes Universitários de Farmácia',
+  5: 'Farmacêuticos',
+};
+
+/// Converte o valor de `audience` (int ou String) no nome do público.
+String audienceLabel(dynamic raw) {
+  final id = raw is int ? raw : int.tryParse(raw?.toString() ?? '');
+  return kAudienceNames[id] ?? 'Sem público';
+}
+
 class EscalaScreen extends StatefulWidget {
   const EscalaScreen({super.key});
 
@@ -17,14 +32,7 @@ class _EscalaScreenState extends State<EscalaScreen>
   late AnimationController _animController;
   late Animation<double> _fadeAnim;
 
-  final List<String> _categories = [
-    'Global',
-    'Farmacêuticos',
-    'Estudantes Universitários de Farmácia',
-    'Técnicos Auxiliares de Farmácia',
-    'Seniores',
-    'Juniores',
-  ];
+  final List<String> _categories = ['Global', ...kAudienceNames.values];
 
   @override
   void initState() {
@@ -45,22 +53,6 @@ class _EscalaScreenState extends State<EscalaScreen>
     super.dispose();
   }
 
-  String _getUserRole(int level) {
-    switch (level) {
-      case 1:
-        return 'Juniores';
-      case 2:
-        return 'Seniores';
-      case 3:
-        return 'Técnicos Auxiliares de Farmácia';
-      case 4:
-        return 'Estudantes Universitários de Farmácia';
-      case 5:
-      default:
-        return 'Farmacêuticos';
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     const primary = Color(0xFF673AB7);
@@ -68,8 +60,7 @@ class _EscalaScreenState extends State<EscalaScreen>
 
     final currentUserId = FirebaseAuth.instance.currentUser?.uid;
     final int userXP = ProgressManager().currentXP;
-    final int userLevel = ProgressManager().currentLevel;
-    final String userRole = _getUserRole(userLevel);
+    const String userRole = 'Sem público';
 
     return Scaffold(
       backgroundColor: const Color(0xFF1E1B26),
@@ -246,18 +237,10 @@ class _EscalaScreenState extends State<EscalaScreen>
                             xp = userXP;
                           }
 
-                          int level = 1;
-                          var rawLevel = data['level'];
-                          if (rawLevel is int) {
-                            level = rawLevel;
-                          } else if (rawLevel != null) {
-                            level = int.tryParse(rawLevel.toString()) ?? (docId == currentUserId ? userLevel : 1);
-                          } else if (docId == currentUserId) {
-                            level = userLevel;
-                          }
-
                           // LÊ O PÚBLICO DIRETAMENTE AQUI:
-                          String role = data['audience']?.toString() ?? data['role']?.toString() ?? _getUserRole(level);
+                          String role = data['audience'] != null
+                              ? audienceLabel(data['audience'])
+                              : (data['role']?.toString() ?? 'Sem público');
 
                           list.add({
                             'uid': docId,
@@ -438,7 +421,7 @@ class _EscalaScreenState extends State<EscalaScreen>
                               }
                               // LÊ O PÚBLICO PARA O RODAPÉ:
                               if (userData['audience'] != null) {
-                                dynamicRole = userData['audience'].toString();
+                                dynamicRole = audienceLabel(userData['audience']);
                               } else if (userData['role'] != null) {
                                 dynamicRole = userData['role'].toString();
                               }
@@ -576,7 +559,7 @@ class _EscalaScreenState extends State<EscalaScreen>
             ),
           ),
           Text(
-            '$xp XP',
+            '$xp mg',
             style: TextStyle(
               fontWeight: FontWeight.w900,
               color: rankColor,
