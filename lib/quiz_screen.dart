@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:audioplayers/audioplayers.dart'; 
+import 'package:flutter/services.dart';
+import 'package:audioplayers/audioplayers.dart';
 import 'audio_manager.dart';
 import 'progress_manager.dart'; // Import necessário para o XP
 
@@ -20,16 +21,33 @@ class QuizScreen extends StatefulWidget {
 class _QuizScreenState extends State<QuizScreen> {
   int? selectedOption;
   bool isAnswered = false;
-  
-  final int correctAnswerIndex = 1; 
-  
+
+  final int correctAnswerIndex = 1;
+  static const int _xpReward = 150;
+
   final AudioPlayer _sfxPlayer = AudioPlayer();
+
+  // PALETA (alinhada com o ecrã inicial escuro)
+  static const Color _bg = Color(0xFF1E1B26);
+  static const Color _ok = Color(0xFF00E676);
+  static const Color _ko = Color(0xFFFF5252);
+
+  // Versão mais clara da cor do nível, para texto/ícones legíveis em fundo escuro
+  Color get _accent => Color.lerp(widget.themeColor, Colors.white, 0.3)!;
 
   final List<String> options = [
     'Recomendar a toma de 1g a cada 8 horas, acompanhado de protetor gástrico.',
     'Não dispensar. Encaminhar para o médico, dado o risco de toxicidade hepática grave.',
     'Reduzir a dose para 500mg por dia e monitorizar o utente durante a semana.',
     'Sugerir a troca imediata para Ibuprofeno 400mg, por ser mais seguro para o fígado.',
+  ];
+
+  // Uma explicação por opção: aparece a da opção escolhida (e a correta, se errar)
+  final List<String> explanations = [
+    'O protetor gástrico protege o estômago, não o fígado. Numa insuficiência hepática grave, 3g por dia de paracetamol continuam a representar um risco real de hepatotoxicidade.',
+    'O Paracetamol tem um metabolismo hepático intenso. Numa insuficiência hepática grave, este fármaco torna-se altamente hepatotóxico. A dispensa está contraindicada sem reavaliação médica.',
+    'Reduzir a dose não elimina o risco: na insuficiência hepática grave o problema é o fármaco em si, não só a quantidade. Ajustar doses e monitorizar é decisão médica, não do balcão.',
+    'Os AINEs também não são seguros neste cenário: na doença hepática grave aumentam o risco de hemorragia digestiva e de lesão renal, e o utente tem 65 anos. Trocar de fármaco por iniciativa própria não resolve.',
   ];
 
   final List<String> letters = ['A', 'B', 'C', 'D'];
@@ -51,310 +69,222 @@ class _QuizScreenState extends State<QuizScreen> {
     _sfxPlayer.play(AssetSource('sounds/$fileName'));
   }
 
+  void _select(int index) {
+    if (isAnswered) return;
+    setState(() => selectedOption = index);
+    HapticFeedback.selectionClick();
+    _playSound('click.mp3');
+  }
+
+  void _confirm() {
+    if (selectedOption == null || isAnswered) return;
+    setState(() => isAnswered = true);
+
+    if (selectedOption == correctAnswerIndex) {
+      _playSound('correct.mp3');
+      ProgressManager().addXP(_xpReward);
+      HapticFeedback.mediumImpact();
+    } else {
+      _playSound('wrong.mp3');
+      HapticFeedback.heavyImpact();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        // GRADIENTE RECUPERADO: Do tom avermelhado/magenta superior para branco
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFFFCE4EC), // Tom avermelhado/rosa muito suave no topo
-              Color(0xFFF8F9FA),
-              Color(0xFFE9ECEF),
-            ],
-            stops: [0.0, 0.35, 1.0],
-          ),
-        ),
-        child: SafeArea(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // CABEÇALHO LIMPO (Sem nível nem contador de cápsulas)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    InkWell(
-                      onTap: () => Navigator.pop(context),
-                      borderRadius: BorderRadius.circular(50),
-                      child: Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.05), 
-                              blurRadius: 10, 
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: Icon(Icons.close_rounded, color: Colors.grey.shade700, size: 22),
-                      ),
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light,
+      child: Scaffold(
+        backgroundColor: _bg,
+        body: Stack(
+          children: [
+            // HALO DE COR DO NÍVEL NO TOPO
+            Positioned(
+              top: -160,
+              left: -80,
+              right: -80,
+              child: IgnorePointer(
+                child: Container(
+                  height: 420,
+                  decoration: BoxDecoration(
+                    gradient: RadialGradient(
+                      colors: [
+                        widget.themeColor.withValues(alpha: 0.45),
+                        Colors.transparent,
+                      ],
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: widget.themeColor.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: widget.themeColor.withValues(alpha: 0.3)),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.local_pharmacy_rounded, size: 16, color: widget.themeColor),
-                          const SizedBox(width: 6),
-                          Text(
-                            widget.levelName.toUpperCase(),
-                            style: TextStyle(
-                              color: widget.themeColor, 
-                              fontWeight: FontWeight.w900, 
-                              fontSize: 13, 
-                              letterSpacing: 1.0,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 42),
-                  ],
+                  ),
                 ),
               ),
+            ),
 
-              const SizedBox(height: 12),
-              
-              // CARTÃO CLÍNICO EM DESTAQUE
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: widget.themeColor.withValues(alpha: 0.12), 
-                        blurRadius: 24, 
-                        offset: const Offset(0, 12),
-                      )
-                    ],
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 8, 
-                        height: 190,
-                        decoration: BoxDecoration(
-                          color: widget.themeColor, 
-                          borderRadius: const BorderRadius.only(
-                            topLeft: Radius.circular(16), 
-                            bottomLeft: Radius.circular(16),
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.all(20.0),
+            SafeArea(
+              child: Column(
+                children: [
+                  _buildHeader(),
+                  Expanded(
+                    child: Stack(
+                      children: [
+                        SingleChildScrollView(
+                          physics: const BouncingScrollPhysics(),
+                          padding: const EdgeInsets.fromLTRB(20, 8, 20, 100),
                           child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              Row(
-                                children: [
-                                  Icon(Icons.medical_information_rounded, size: 18, color: Colors.grey.shade500),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    'CASO CLÍNICO #01', 
-                                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: Colors.grey.shade600, letterSpacing: 1.2),
-                                  ),
-                                ],
-                              ),
-                              const Padding(
-                                padding: EdgeInsets.symmetric(vertical: 12.0), 
-                                child: Divider(height: 1),
-                              ),
-                              const Text(
-                                'Um utente de 65 anos pede uma embalagem de paracetamol para dores articulares, mas refere que sofre de insuficiência hepática grave. Qual deve ser a sua recomendação?',
-                                style: TextStyle(
-                                  fontSize: 17, 
-                                  fontWeight: FontWeight.w700, 
-                                  color: Color(0xFF1F2937), 
-                                  height: 1.4,
+                              _buildCaseCard(),
+                              const SizedBox(height: 20),
+
+                              // OPÇÕES  →  (após responder)  →  PAINEL DE EXPLICAÇÃO
+                              AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 450),
+                                switchInCurve: Curves.easeOutCubic,
+                                switchOutCurve: Curves.easeIn,
+                                layoutBuilder: (current, previous) => Stack(
+                                  fit: StackFit.passthrough,
+                                  alignment: Alignment.topCenter,
+                                  children: [...previous, if (current != null) current],
                                 ),
+                                transitionBuilder: (child, animation) => FadeTransition(
+                                  opacity: animation,
+                                  child: SlideTransition(
+                                    position: Tween<Offset>(
+                                      begin: const Offset(0, 0.06),
+                                      end: Offset.zero,
+                                    ).animate(animation),
+                                    child: child,
+                                  ),
+                                ),
+                                child: isAnswered
+                                    ? _buildResultPanel(key: const ValueKey('result'))
+                                    : _buildOptions(key: const ValueKey('options')),
                               ),
                             ],
                           ),
                         ),
+
+                        // CONFIRMAR: pílula discreta que só aparece quando há uma opção escolhida
+                        Positioned(
+                          bottom: 20,
+                          left: 0,
+                          right: 0,
+                          child: Center(child: _buildConfirmPill()),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ───────────────────────── CABEÇALHO ─────────────────────────
+  Widget _buildHeader() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          InkWell(
+            onTap: () => Navigator.pop(context),
+            borderRadius: BorderRadius.circular(50),
+            child: Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.08),
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+              ),
+              child: Icon(Icons.close_rounded, color: Colors.white.withValues(alpha: 0.8), size: 22),
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: widget.themeColor.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: _accent.withValues(alpha: 0.5)),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.local_pharmacy_rounded, size: 16, color: _accent),
+                const SizedBox(width: 6),
+                Text(
+                  widget.levelName.toUpperCase(),
+                  style: TextStyle(
+                    color: _accent,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 13,
+                    letterSpacing: 1.0,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 42),
+        ],
+      ),
+    );
+  }
+
+  // ───────────────────────── CASO CLÍNICO ─────────────────────────
+  Widget _buildCaseCard() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+        boxShadow: [
+          BoxShadow(
+            color: widget.themeColor.withValues(alpha: 0.25),
+            blurRadius: 40,
+            offset: const Offset(0, 16),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Barra lateral que acompanha sempre a altura do cartão
+              Container(width: 6, color: _accent),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.medical_information_rounded, size: 18, color: _accent),
+                          const SizedBox(width: 8),
+                          Text(
+                            'CASO CLÍNICO #01',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w900,
+                              color: _accent,
+                              letterSpacing: 1.6,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      const Text(
+                        'Um utente de 65 anos pede uma embalagem de paracetamol para dores articulares, mas refere que sofre de insuficiência hepática grave. Qual deve ser a sua recomendação?',
+                        style: TextStyle(
+                          fontSize: 19,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                          height: 1.35,
+                        ),
                       ),
                     ],
-                  ),
-                ),
-              ),
-              
-              // OPÇÕES DE RESPOSTA
-              Expanded(
-                child: ListView.separated(
-                  padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
-                  itemCount: isAnswered ? options.length + 1 : options.length,
-                  separatorBuilder: (context, index) => const SizedBox(height: 12),
-                  itemBuilder: (context, index) {
-                    
-                    if (isAnswered && index == options.length) {
-                      return _buildFeedbackPanel(selectedOption == correctAnswerIndex);
-                    }
-
-                    final bool isSelected = selectedOption == index;
-                    final bool isCorrectOption = index == correctAnswerIndex;
-                    
-                    Color borderColor = Colors.grey.shade300;
-                    Color bgColor = Colors.white;
-                    Color markerBg = Colors.grey.shade100;
-                    Color markerText = Colors.grey.shade600;
-                    Color textColor = const Color(0xFF1F2937);
-                    
-                    if (isAnswered) {
-                      if (isCorrectOption) {
-                        borderColor = const Color(0xFF4CAF50); 
-                        bgColor = const Color(0xFF4CAF50).withValues(alpha: 0.08); 
-                        markerBg = const Color(0xFF4CAF50); 
-                        markerText = Colors.white; 
-                        textColor = const Color(0xFF2E7D32);
-                      } else if (isSelected) {
-                        borderColor = const Color(0xFFE53935); 
-                        bgColor = const Color(0xFFE53935).withValues(alpha: 0.08); 
-                        markerBg = const Color(0xFFE53935); 
-                        markerText = Colors.white; 
-                        textColor = const Color(0xFFC62828);
-                      } else {
-                        bgColor = Colors.white.withValues(alpha: 0.5); 
-                        textColor = Colors.grey.shade400;
-                      }
-                    } else if (isSelected) {
-                      borderColor = widget.themeColor; 
-                      bgColor = widget.themeColor.withValues(alpha: 0.08); 
-                      markerBg = widget.themeColor; 
-                      markerText = Colors.white;
-                    }
-
-                    return GestureDetector(
-                      onTap: isAnswered ? null : () {
-                        setState(() {
-                          selectedOption = index;
-                        });
-                        _playSound('click.mp3'); 
-                      },
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 250),
-                        curve: Curves.easeOutCubic,
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: bgColor,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: borderColor, 
-                            width: isSelected || (isAnswered && isCorrectOption) ? 2.5 : 1.5,
-                          ),
-                        ),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            AnimatedContainer(
-                              duration: const Duration(milliseconds: 200),
-                              width: 36, 
-                              height: 36,
-                              decoration: BoxDecoration(
-                                color: markerBg, 
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Center(
-                                child: isAnswered && isCorrectOption 
-                                  ? const Icon(Icons.check_rounded, color: Colors.white, size: 20)
-                                  : isAnswered && isSelected && !isCorrectOption
-                                    ? const Icon(Icons.close_rounded, color: Colors.white, size: 20)
-                                    : Text(
-                                        letters[index], 
-                                        style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: markerText),
-                                      ),
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Text(
-                                options[index], 
-                                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: textColor, height: 1.3),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-              
-              // BOTÃO DE AÇÃO
-              Container(
-                padding: const EdgeInsets.all(24.0),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  boxShadow: [
-                    BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, -5))
-                  ],
-                ),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 300),
-                  width: double.infinity, 
-                  height: 60,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(50),
-                    color: selectedOption != null ? widget.themeColor : Colors.grey.shade200,
-                    boxShadow: selectedOption != null ? [
-                      BoxShadow(color: widget.themeColor.withValues(alpha: 0.4), blurRadius: 15, offset: const Offset(0, 6))
-                    ] : [],
-                  ),
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(50),
-                      onTap: selectedOption == null ? null : () {
-                        if (isAnswered) {
-                          Navigator.pop(context); 
-                        } else {
-                          setState(() {
-                            isAnswered = true;
-                          });
-                          
-                          if (selectedOption == correctAnswerIndex) {
-                            _playSound('correct.mp3');
-                            ProgressManager().addXP(150); 
-                          } else {
-                            _playSound('wrong.mp3');
-                          }
-                        }
-                      },
-                      child: Center(
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              isAnswer2ned_text(isAnswered),
-                              style: TextStyle(
-                                fontSize: 15, 
-                                fontWeight: FontWeight.w900, 
-                                letterSpacing: 1.5, 
-                                color: selectedOption != null ? Colors.white : Colors.grey.shade400,
-                              ),
-                            ),
-                            if (selectedOption != null) ...[
-                              const SizedBox(width: 8),
-                              const Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 20),
-                            ]
-                          ],
-                        ),
-                      ),
-                    ),
                   ),
                 ),
               ),
@@ -365,54 +295,347 @@ class _QuizScreenState extends State<QuizScreen> {
     );
   }
 
-  String isAnswer2ned_text(bool answered) {
-    return answered ? 'PRÓXIMA CÁPSULA' : 'CONFIRMAR DIAGNÓSTICO';
+  // ───────────────────────── OPÇÕES ─────────────────────────
+  Widget _buildOptions({Key? key}) {
+    return Column(
+      key: key,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (int i = 0; i < options.length; i++) ...[
+          _buildOptionTile(i),
+          if (i < options.length - 1) const SizedBox(height: 12),
+        ],
+      ],
+    );
   }
 
-  Widget _buildFeedbackPanel(bool isCorrect) {
-    return Container(
-      margin: const EdgeInsets.only(top: 16, bottom: 24),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: isCorrect ? const Color(0xFF4CAF50).withValues(alpha: 0.1) : const Color(0xFFE53935).withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isCorrect ? const Color(0xFF4CAF50).withValues(alpha: 0.3) : const Color(0xFFE53935).withValues(alpha: 0.3),
-        ),
+  Widget _buildOptionTile(int index) {
+    final bool isSelected = selectedOption == index;
+
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.0, end: 1.0),
+      duration: Duration(milliseconds: 350 + index * 90),
+      curve: Curves.easeOutCubic,
+      builder: (context, t, child) => Opacity(
+        opacity: t,
+        child: Transform.translate(offset: Offset(0, 24 * (1 - t)), child: child),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+      child: GestureDetector(
+        onTap: () => _select(index),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+          padding: const EdgeInsets.all(14),
+          transformAlignment: Alignment.center,
+          transform: Matrix4.diagonal3Values(isSelected ? 1.02 : 1.0, isSelected ? 1.02 : 1.0, 1.0),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? widget.themeColor.withValues(alpha: 0.22)
+                : Colors.white.withValues(alpha: 0.05),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: isSelected ? _accent : Colors.white.withValues(alpha: 0.1),
+              width: isSelected ? 2 : 1.5,
+            ),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: widget.themeColor.withValues(alpha: 0.5),
+                      blurRadius: 24,
+                      offset: const Offset(0, 8),
+                    ),
+                  ]
+                : [],
+          ),
+          child: Row(
             children: [
-              Icon(
-                isCorrect ? Icons.auto_awesome_rounded : Icons.info_outline_rounded, 
-                color: isCorrect ? const Color(0xFF2E7D32) : const Color(0xFFC62828), 
-                size: 20,
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 220),
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: isSelected ? _accent : Colors.white.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Center(
+                  child: Text(
+                    letters[index],
+                    style: TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 20,
+                      color: isSelected ? _bg : Colors.white.withValues(alpha: 0.7),
+                    ),
+                  ),
+                ),
               ),
-              const SizedBox(width: 8),
-              Text(
-                isCorrect ? 'CERTO! PORQUÊ?' : 'INCORRETO! PORQUÊ?', 
-                style: TextStyle(
-                  fontSize: 14, 
-                  fontWeight: FontWeight.w900, 
-                  color: isCorrect ? const Color(0xFF2E7D32) : const Color(0xFFC62828), 
-                  letterSpacing: 1.0,
+              const SizedBox(width: 14),
+              Expanded(
+                child: Text(
+                  options[index],
+                  style: TextStyle(
+                    fontSize: 15.5,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white.withValues(alpha: isSelected ? 1.0 : 0.88),
+                    height: 1.3,
+                  ),
                 ),
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  // ───────────────────────── CONFIRMAR (discreto) ─────────────────────────
+  Widget _buildConfirmPill() {
+    final bool visible = selectedOption != null && !isAnswered;
+
+    return IgnorePointer(
+      ignoring: !visible,
+      child: AnimatedSlide(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOutBack,
+        offset: visible ? Offset.zero : const Offset(0, 1.5),
+        child: AnimatedOpacity(
+          duration: const Duration(milliseconds: 200),
+          opacity: visible ? 1 : 0,
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: _confirm,
+              borderRadius: BorderRadius.circular(30),
+              child: Container(
+                height: 48,
+                padding: const EdgeInsets.symmetric(horizontal: 22),
+                decoration: BoxDecoration(
+                  color: _accent,
+                  borderRadius: BorderRadius.circular(30),
+                  boxShadow: [
+                    BoxShadow(
+                      color: widget.themeColor.withValues(alpha: 0.6),
+                      blurRadius: 20,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.check_rounded, color: _bg, size: 20),
+                    SizedBox(width: 8),
+                    Text(
+                      'CONFIRMAR',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.4,
+                        color: _bg,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ───────────────────────── PAINEL DE RESULTADO ─────────────────────────
+  Widget _buildResultPanel({Key? key}) {
+    final bool isCorrect = selectedOption == correctAnswerIndex;
+    final Color c = isCorrect ? _ok : _ko;
+
+    return Column(
+      key: key,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // VEREDICTO
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: c.withValues(alpha: 0.18),
+                border: Border.all(color: c.withValues(alpha: 0.6), width: 1.5),
+              ),
+              child: Icon(
+                isCorrect ? Icons.check_rounded : Icons.close_rounded,
+                color: c,
+                size: 26,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                isCorrect ? 'CERTO!' : 'INCORRETO',
+                style: TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.5,
+                  color: c,
+                ),
+              ),
+            ),
+            if (isCorrect)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: c.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: c.withValues(alpha: 0.5)),
+                ),
+                child: Text(
+                  '+$_xpReward XP',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.8,
+                    color: c,
+                  ),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 16),
+
+        // OPÇÃO ESCOLHIDA + EXPLICAÇÃO
+        _buildAnswerBlock(index: selectedOption!, title: 'A TUA RESPOSTA', color: c),
+
+        // Se errou, mostra também a resposta correta com a sua explicação
+        if (!isCorrect) ...[
           const SizedBox(height: 12),
+          _buildAnswerBlock(index: correctAnswerIndex, title: 'RESPOSTA CORRETA', color: _ok),
+        ],
+
+        const SizedBox(height: 20),
+        Align(alignment: Alignment.centerRight, child: _buildNextButton()),
+      ],
+    );
+  }
+
+  Widget _buildAnswerBlock({
+    required int index,
+    required String title,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: color.withValues(alpha: 0.45), width: 1.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
           Text(
-            'O Paracetamol tem um metabolismo hepático intenso. Numa insuficiência hepática grave, este fármaco torna-se altamente hepatotóxico. A dispensa está contraindicada sem reavaliação médica.',
+            title,
             style: TextStyle(
-              fontSize: 15, 
-              fontWeight: FontWeight.w600, 
-              color: isCorrect ? const Color(0xFF1B5E20) : const Color(0xFFB71C1C), 
-              height: 1.4,
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 1.6,
+              color: color,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Center(
+                  child: Text(
+                    letters[index],
+                    style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: _bg),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  options[index],
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                    height: 1.3,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            child: Divider(height: 1, color: color.withValues(alpha: 0.25)),
+          ),
+          Row(
+            children: [
+              Icon(Icons.lightbulb_outline_rounded, size: 16, color: color),
+              const SizedBox(width: 6),
+              Text(
+                'PORQUÊ?',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.4,
+                  color: color,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            explanations[index],
+            style: const TextStyle(
+              fontSize: 14.5,
+              fontWeight: FontWeight.w500,
+              color: Color(0xFFE6E3F0),
+              height: 1.45,
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildNextButton() {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => Navigator.pop(context),
+        borderRadius: BorderRadius.circular(30),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(30),
+          ),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'PRÓXIMA CÁPSULA',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.2,
+                  color: _bg,
+                ),
+              ),
+              SizedBox(width: 8),
+              Icon(Icons.arrow_forward_rounded, color: _bg, size: 18),
+            ],
+          ),
+        ),
       ),
     );
   }

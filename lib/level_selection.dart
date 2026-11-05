@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 import 'dart:math' as math;
 import 'progress_manager.dart';
@@ -40,13 +41,14 @@ class _LevelSelectionScreenState extends State<LevelSelectionScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF2F2F5),
+      backgroundColor: const Color(0xFF1E1B26),
       extendBodyBehindAppBar: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
+        systemOverlayStyle: SystemUiOverlayStyle.light,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: Color(0xFF673AB7)),
+          icon: Icon(Icons.arrow_back_ios_new, color: Colors.white.withValues(alpha: 0.85)),
           onPressed: () => Navigator.pop(context),
         ),
         title: null,
@@ -56,12 +58,12 @@ class _LevelSelectionScreenState extends State<LevelSelectionScreen> {
           Positioned(
             top: -40,
             right: -60,
-            child: _buildMolecule(const Color(0xFF673AB7).withValues(alpha: 0.05), 220),
+            child: _buildMolecule(const Color(0xFF673AB7).withValues(alpha: 0.12), 220),
           ),
           Positioned(
             bottom: 100,
             left: -70,
-            child: _buildMolecule(const Color(0xFF673AB7).withValues(alpha: 0.03), 260),
+            child: _buildMolecule(const Color(0xFF00E5FF).withValues(alpha: 0.08), 260),
           ),
           
           Center(
@@ -89,7 +91,7 @@ class _LevelSelectionScreenState extends State<LevelSelectionScreen> {
 
   Widget _buildMedicineBox(int levelNumber, String level, String theme, String dosage, String category, String pillCount, Color color, bool isUnlocked) {
     final Color cardColor = isUnlocked ? color : Colors.grey.shade400;
-    final Color topTextColor = isUnlocked ? const Color(0xFF1E1B26) : Colors.grey.shade500;
+    final Color topTextColor = isUnlocked ? Colors.white : Colors.white38;
 
     final bool isLightColor = cardColor.computeLuminance() > 0.6;
     final Color bottomTextColor = isLightColor ? const Color(0xFF1E1B26) : Colors.white;
@@ -115,16 +117,16 @@ class _LevelSelectionScreenState extends State<LevelSelectionScreen> {
       child: Container(
         margin: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: const Color(0xFF292533),
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: cardColor.withValues(alpha: 0.25),
+              color: cardColor.withValues(alpha: 0.35),
               blurRadius: 15,
               offset: const Offset(0, 8),
             ),
           ],
-          border: Border.all(color: Colors.grey.shade300, width: 1.5),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.12), width: 1.5),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -170,7 +172,7 @@ class _LevelSelectionScreenState extends State<LevelSelectionScreen> {
                       style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
-                        color: Colors.grey.shade500,
+                        color: Colors.white.withValues(alpha: 0.55),
                         height: 1.2,
                       ),
                     ),
