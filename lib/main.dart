@@ -17,6 +17,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dica_balcao_card.dart'; // NOVO IMPORT DA NOSSA CARTA
 import 'pratica_screen.dart';
 
+// Altura partilhada entre a cápsula de modos e a barra de navegação
+const double kBarraAltura = 56;
+
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(const FirebaseInitializer());
@@ -407,102 +410,54 @@ class _MenuScreenState extends State<MenuScreen> with SingleTickerProviderStateM
 
                       const SizedBox(height: 48),
 
-                      // CÁPSULA DE SELEÇÃO DE MODO (TEORIA VS PRÁTICA)
+                      // CÁPSULA DE SELEÇÃO DE MODO (DIAGNÓSTICO VS CASOS CLÍNICOS)
                       Container(
-                        height: 70,
+                        height: kBarraAltura,
                         decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(50),
+                          borderRadius: BorderRadius.circular(kBarraAltura / 2),
                           boxShadow: [
-                            BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 20, offset: const Offset(0, 8)),
-                          ]
+                            BoxShadow(color: Colors.black.withValues(alpha: 0.25), blurRadius: 20, offset: const Offset(0, 8)),
+                          ],
                         ),
                         child: Row(
                           children: [
-                            // METADE ESQUERDA: TEORIA (Roxo)
-                            Expanded(
-                              child: GestureDetector(
-                                onTap: () async {
-                                  await Navigator.push(
-                                    context,
-                                    MaterialPageRoute(builder: (context) => const LevelSelectionScreen()),
-                                  );
-                                  setState(() {});
-                                },
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    borderRadius: const BorderRadius.horizontal(left: Radius.circular(50)),
-                                    gradient: const LinearGradient(
-                                      colors: [Color(0xFF7E57C2), Color(0xFF512DA8)],
-                                      begin: Alignment.topLeft,
-                                      end: Alignment.bottomRight,
-                                    ),
-                                    border: Border.all(color: Colors.white.withValues(alpha: 0.15), width: 1.5),
-                                  ),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Column(
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        crossAxisAlignment: CrossAxisAlignment.end, // Texto alinhado à direita (junto ao centro)
-                                        children: [
-                                          const Text('TEORIA', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 14, letterSpacing: 1.0)),
-                                          Text('Simulador', style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontWeight: FontWeight.w700, fontSize: 10)),
-                                        ],
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Icon(Icons.style_rounded, color: Colors.white.withValues(alpha: 0.9), size: 26),
-                                    ],
-                                  ),
-                                ),
-                              ),
+                            // METADE ESQUERDA: DIAGNÓSTICO (Roxo)
+                            _buildModeHalf(
+                              label: 'DIAGNÓSTICO',
+                              icon: Icons.style_rounded,
+                              colors: const [Color(0xFF7E57C2), Color(0xFF512DA8)],
+                              radius: BorderRadius.horizontal(left: Radius.circular(kBarraAltura / 2)),
+                              onTap: () async {
+                                await Navigator.push(
+                                  context,
+                                  MaterialPageRoute(builder: (context) => const LevelSelectionScreen()),
+                                );
+                                setState(() {});
+                              },
                             ),
-                            
+
                             // VINCO DA CÁPSULA (Fenda central do comprimido)
                             Container(width: 2, color: const Color(0xFF1E1B26)),
 
-                            // METADE DIREITA: PRÁTICA (Cyan Néon)
-                            Expanded(
-                              child: GestureDetector(
-                                onTap: () {
-                                  // JÁ CHAMA O NOVO ECRÃ!
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(builder: (context) => const PraticaScreen()),
-                                  );
-                                },
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    borderRadius: const BorderRadius.horizontal(right: Radius.circular(50)),
-                                    gradient: const LinearGradient(
-                                      colors: [Color(0xFF00E5FF), Color(0xFF00838F)],
-                                      begin: Alignment.topLeft,
-                                      end: Alignment.bottomRight,
-                                    ),
-                                    border: Border.all(color: Colors.white.withValues(alpha: 0.15), width: 1.5),
-                                  ),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(Icons.qr_code_scanner_rounded, color: Colors.white.withValues(alpha: 0.9), size: 26),
-                                      const SizedBox(width: 12),
-                                      Column(
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        crossAxisAlignment: CrossAxisAlignment.start, // Texto alinhado à esquerda (junto ao centro)
-                                        children: [
-                                          const Text('PRÁTICA', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 14, letterSpacing: 1.0)),
-                                          Text('Casos QR', style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontWeight: FontWeight.w700, fontSize: 10)),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
+                            // METADE DIREITA: CASOS CLÍNICOS (Cyan Néon)
+                            _buildModeHalf(
+                              label: 'CASOS CLÍNICOS',
+                              icon: Icons.qr_code_scanner_rounded,
+                              colors: const [Color(0xFF00E5FF), Color(0xFF00838F)],
+                              radius: BorderRadius.horizontal(right: Radius.circular(kBarraAltura / 2)),
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(builder: (context) => const PraticaScreen()),
+                                );
+                              },
                             ),
                           ],
                         ),
                       ),
 
-                      const SizedBox(height: 120),
+                      // ESPAÇAMENTO DE SEGURANÇA PARA AFASTAR DA BARRA INFERIOR
+                      const SizedBox(height: 140),
                     ],
                   ),
                 ),
@@ -518,10 +473,10 @@ class _MenuScreenState extends State<MenuScreen> with SingleTickerProviderStateM
         children: [
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 24),
-            height: 56,
+            height: kBarraAltura,
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.05),
-              borderRadius: BorderRadius.circular(28),
+              borderRadius: BorderRadius.circular(kBarraAltura / 2),
               border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
               boxShadow: [
                 BoxShadow(
@@ -594,6 +549,53 @@ class _MenuScreenState extends State<MenuScreen> with SingleTickerProviderStateM
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  // Metade da cápsula: ícone por cima, texto que encolhe para caber sempre inteiro
+  Widget _buildModeHalf({
+    required String label,
+    required IconData icon,
+    required List<Color> colors,
+    required BorderRadius radius,
+    required VoidCallback onTap,
+  }) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            borderRadius: radius,
+            gradient: LinearGradient(
+              colors: colors,
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.15), width: 1.5),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: Colors.white.withValues(alpha: 0.95), size: 22),
+              const SizedBox(height: 3),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 12,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

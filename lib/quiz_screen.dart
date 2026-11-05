@@ -55,21 +55,24 @@ class _QuizScreenState extends State<QuizScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
+        // GRADIENTE RECUPERADO: Do tom avermelhado/magenta superior para branco
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
+              Color(0xFFFCE4EC), // Tom avermelhado/rosa muito suave no topo
               Color(0xFFF8F9FA),
               Color(0xFFE9ECEF),
             ],
+            stops: [0.0, 0.35, 1.0],
           ),
         ),
         child: SafeArea(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // CABEÇALHO
+              // CABEÇALHO LIMPO (Sem nível nem contador de cápsulas)
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
                 child: Row(
@@ -122,38 +125,11 @@ class _QuizScreenState extends State<QuizScreen> {
                 ),
               ),
 
-              // BARRA DE PROGRESSO
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
-                child: Column(
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'CÁPSULA 1 DE 10', 
-                          style: TextStyle(fontWeight: FontWeight.w800, color: Colors.grey.shade600, fontSize: 12, letterSpacing: 1.0),
-                        ),
-                        Icon(Icons.monitor_heart_outlined, size: 20, color: Colors.grey.shade400),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: LinearProgressIndicator(
-                        value: 0.1, 
-                        backgroundColor: Colors.grey.shade300, 
-                        color: widget.themeColor, 
-                        minHeight: 8,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              const SizedBox(height: 12),
               
-              // CARTÃO CLÍNICO
+              // CARTÃO CLÍNICO EM DESTAQUE
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+                padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
                 child: Container(
                   decoration: BoxDecoration(
                     color: Colors.white,
@@ -170,7 +146,7 @@ class _QuizScreenState extends State<QuizScreen> {
                     children: [
                       Container(
                         width: 8, 
-                        height: 180,
+                        height: 190,
                         decoration: BoxDecoration(
                           color: widget.themeColor, 
                           borderRadius: const BorderRadius.only(
@@ -202,7 +178,7 @@ class _QuizScreenState extends State<QuizScreen> {
                               const Text(
                                 'Um utente de 65 anos pede uma embalagem de paracetamol para dores articulares, mas refere que sofre de insuficiência hepática grave. Qual deve ser a sua recomendação?',
                                 style: TextStyle(
-                                  fontSize: 18, 
+                                  fontSize: 17, 
                                   fontWeight: FontWeight.w700, 
                                   color: Color(0xFF1F2937), 
                                   height: 1.4,
@@ -350,7 +326,6 @@ class _QuizScreenState extends State<QuizScreen> {
                             isAnswered = true;
                           });
                           
-                          // Lógica de recompensa XP implementada
                           if (selectedOption == correctAnswerIndex) {
                             _playSound('correct.mp3');
                             ProgressManager().addXP(150); 
@@ -364,7 +339,7 @@ class _QuizScreenState extends State<QuizScreen> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Text(
-                              isAnswered ? 'PRÓXIMA CÁPSULA' : 'CONFIRMAR DIAGNÓSTICO',
+                              isAnswer2ned_text(isAnswered),
                               style: TextStyle(
                                 fontSize: 15, 
                                 fontWeight: FontWeight.w900, 
@@ -388,6 +363,10 @@ class _QuizScreenState extends State<QuizScreen> {
         ),
       ),
     );
+  }
+
+  String isAnswer2ned_text(bool answered) {
+    return answered ? 'PRÓXIMA CÁPSULA' : 'CONFIRMAR DIAGNÓSTICO';
   }
 
   Widget _buildFeedbackPanel(bool isCorrect) {
