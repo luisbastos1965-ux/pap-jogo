@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'audio_manager.dart';
-import 'progress_manager.dart'; // Import necessário para o XP
+import 'progress_manager.dart';
 
 class QuizScreen extends StatefulWidget {
   final String levelName;
@@ -21,74 +22,74 @@ class QuizScreen extends StatefulWidget {
 class _QuizScreenState extends State<QuizScreen> {
   int? selectedOption;
   bool isAnswered = false;
-
-  final int correctAnswerIndex = 1;
   static const int _xpReward = 150;
 
   final AudioPlayer _sfxPlayer = AudioPlayer();
 
-  // PALETA (alinhada com o ecrã inicial escuro)
   static const Color _bg = Color(0xFF1E1B26);
   static const Color _ok = Color(0xFF00E676);
   static const Color _ko = Color(0xFFFF5252);
 
-  // Versão mais clara da cor do nível, para texto/ícones legíveis em fundo escuro
   Color get _accent => Color.lerp(widget.themeColor, Colors.white, 0.3)!;
 
-  // Público-alvo de cada nível
+  List<Map<String, dynamic>> _perguntas = [];
+  bool _isLoading = true;
+  int _currentIndex = 0;
+  final List<String> letters = const ['A', 'B', 'C', 'D'];
+
+  int get correctAnswerIndex {
+    if (_perguntas.isEmpty) return 0;
+    final String letra =
+        (_perguntas[_currentIndex]['resposta_correta'] ?? 'A').toString();
+    return letters.indexOf(letra.toUpperCase());
+  }
+
+  List<String> get currentOptions {
+    if (_perguntas.isEmpty) return [];
+    var p = _perguntas[_currentIndex];
+    return [
+      p['opcao_a']?.toString() ?? '',
+      p['opcao_b']?.toString() ?? '',
+      p['opcao_c']?.toString() ?? '',
+      p['opcao_d']?.toString() ?? ''
+    ];
+  }
+
   static const List<String> _audienceNames = [
-    'Jovens',        // Nível 1
-    'Comunidade',    // Nível 2
-    'TAF',           // Nível 3
-    'Universitários', // Nível 4
-    'Farmacêuticos', // Nível 5
+    'Jovens',
+    'Comunidade',
+    'TAF',
+    'Universitários',
+    'Farmacêuticos',
   ];
 
-  // Extrai o número do nível (ex: de "Nível 2" extrai 2)
   int get _levelNumber {
     final match = RegExp(r'\d+').firstMatch(widget.levelName);
     return match != null ? int.parse(match.group(0)!) : 1;
   }
 
-  // Retorna a etiqueta do público (ex: "Comunidade")
   String get _levelLabel {
     final n = _levelNumber;
     if (n >= 1 && n <= _audienceNames.length) return _audienceNames[n - 1];
-    return widget.levelName; 
+    return widget.levelName;
   }
 
-  // 5. ÍCONE POR PÚBLICO
   IconData _getIconForLevel() {
     switch (_levelNumber) {
-      case 1: return Icons.headphones_rounded; // Jovens
-      case 2: return Icons.family_restroom_rounded; // Comunidade
-      case 3: return Icons.medication_rounded; // TAF
-      case 4: return Icons.school_rounded; // Universitários
-      case 5: return Icons.science_rounded; // Farmacêuticos
+      case 1: return Icons.headphones_rounded;
+      case 2: return Icons.family_restroom_rounded;
+      case 3: return Icons.medication_rounded;
+      case 4: return Icons.school_rounded;
+      case 5: return Icons.science_rounded;
       default: return Icons.local_pharmacy_rounded;
     }
   }
-
-  final List<String> options = [
-    'Recomendar a toma de 1g a cada 8 horas, acompanhado de protetor gástrico.',
-    'Não dispensar. Encaminhar para o médico, dado o risco de toxicidade hepática grave.',
-    'Reduzir a dose para 500mg por dia e monitorizar o utente durante a semana.',
-    'Sugerir a troca imediata para Ibuprofeno 400mg, por ser mais seguro para o fígado.',
-  ];
-
-  final List<String> explanations = [
-    'O protetor gástrico protege o estômago, não o fígado. Numa insuficiência hepática grave, 3g por dia de paracetamol continuam a representar um risco real de hepatotoxicidade.',
-    'O Paracetamol tem um metabolismo hepático intenso. Numa insuficiência hepática grave, este fármaco torna-se altamente hepatotóxico. A dispensa está contraindicada sem reavaliação médica.',
-    'Reduzir a dose não elimina o risco: na insuficiência hepática grave o problema é o fármaco em si, não só a quantidade. Ajustar doses e monitorizar é decisão médica, não do balcão.',
-    'Os AINEs também não são seguros neste cenário: na doença hepática grave aumentam o risco de hemorragia digestiva e de lesão renal, e o utente tem 65 anos. Trocar de fármaco por iniciativa própria não resolve.',
-  ];
-
-  final List<String> letters = ['A', 'B', 'C', 'D'];
 
   @override
   void initState() {
     super.initState();
     AudioManager().playCrossfade('quiz_bgm.mp3');
+    _carregarPerguntas();
   }
 
   @override
@@ -96,6 +97,25 @@ class _QuizScreenState extends State<QuizScreen> {
     _sfxPlayer.dispose();
     AudioManager().playCrossfade('bgm.mp3');
     super.dispose();
+  }
+
+  // --- FUNÇÃO DO FIREBASE ---
+  Future<void> _carregarPerguntas() async {
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('questoes')
+          .where('nivel', isEqualTo: _levelNumber)
+          .get();
+
+      setState(() {
+        _perguntas = snapshot.docs.map((doc) => doc.data()).toList();
+        _perguntas.shuffle(); // Baralha a ordem das perguntas
+        _isLoading = false;
+      });
+    } catch (e) {
+      print("Erro ao carregar o Firestore: $e");
+      setState(() => _isLoading = false);
+    }
   }
 
   void _playSound(String fileName) {
@@ -125,13 +145,41 @@ class _QuizScreenState extends State<QuizScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Ecrã de loading enquanto vai ao Firebase
+    if (_isLoading) {
+      return Scaffold(
+        backgroundColor: _bg,
+        body: Center(child: CircularProgressIndicator(color: _accent)),
+      );
+    }
+
+    // Se o nível ainda não tiver perguntas na base de dados
+    if (_perguntas.isEmpty) {
+      return Scaffold(
+        backgroundColor: _bg,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            onPressed: () => Navigator.pop(context),
+          ),
+        ),
+        body: const Center(
+          child: Text(
+            'Nenhuma pergunta encontrada para este nível.',
+            style: TextStyle(color: Colors.white, fontSize: 16),
+          ),
+        ),
+      );
+    }
+
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
       child: Scaffold(
         backgroundColor: _bg,
         body: Stack(
           children: [
-            // 4. PADRÃO DE FUNDO POR NÍVEL (Marca de água do público)
             Positioned(
               bottom: -60,
               right: -50,
@@ -141,20 +189,18 @@ class _QuizScreenState extends State<QuizScreen> {
                   child: Icon(
                     _getIconForLevel(),
                     size: 320,
-                    color: widget.themeColor.withValues(alpha: 0.04), // Muito subtil
+                    color: widget.themeColor.withValues(alpha: 0.04), 
                   ),
                 ),
               ),
             ),
-
-            // 6. TRANSIÇÃO HERO (O halo expande a partir da caixa do ecrã anterior)
             Positioned(
               top: -160,
               left: -80,
               right: -80,
               child: IgnorePointer(
                 child: Hero(
-                  tag: 'level_bg_${widget.levelName}', // LIGAÇÃO HERO AQUI!
+                  tag: 'level_bg_${widget.levelName}', 
                   child: Container(
                     height: 420,
                     decoration: BoxDecoration(
@@ -169,7 +215,6 @@ class _QuizScreenState extends State<QuizScreen> {
                 ),
               ),
             ),
-
             SafeArea(
               child: Column(
                 children: [
@@ -185,7 +230,6 @@ class _QuizScreenState extends State<QuizScreen> {
                             children: [
                               _buildCaseCard(),
                               const SizedBox(height: 24),
-
                               AnimatedSwitcher(
                                 duration: const Duration(milliseconds: 450),
                                 switchInCurve: Curves.easeOutCubic,
@@ -212,8 +256,6 @@ class _QuizScreenState extends State<QuizScreen> {
                             ],
                           ),
                         ),
-
-                        // CONFIRMAR: pílula discreta
                         Positioned(
                           bottom: 20,
                           left: 0,
@@ -232,7 +274,6 @@ class _QuizScreenState extends State<QuizScreen> {
     );
   }
 
-  // ───────────────────────── CABEÇALHO ─────────────────────────
   Widget _buildHeader() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
@@ -263,7 +304,6 @@ class _QuizScreenState extends State<QuizScreen> {
               children: [
                 Icon(_getIconForLevel(), size: 16, color: _accent),
                 const SizedBox(width: 6),
-                // 2. A DOSAGEM COMO ASSINATURA (Ex: JOVENS · 100 MG)
                 Text(
                   '${_levelLabel.toUpperCase()} · ${_levelNumber * 100} MG',
                   style: TextStyle(
@@ -276,14 +316,12 @@ class _QuizScreenState extends State<QuizScreen> {
               ],
             ),
           ),
-          // 3. COMPRIMIDOS COMO PROGRESSO (Substitui o espaço vazio à direita)
           _buildPillProgress(),
         ],
       ),
     );
   }
 
-  // 3. WIDGET: BOLINHAS (COMPRIMIDOS) DE PROGRESSO
   Widget _buildPillProgress() {
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -302,11 +340,9 @@ class _QuizScreenState extends State<QuizScreen> {
     );
   }
 
-  // ───────────────────────── CASO CLÍNICO ─────────────────────────
   Widget _buildCaseCard() {
-    // 1. CONTORNO EM GRADIENTE EM VEZ DA BARRA (Borda fina)
     return Container(
-      padding: const EdgeInsets.all(1.5), // A espessura da nossa borda gradiente
+      padding: const EdgeInsets.all(1.5), 
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(24),
         gradient: LinearGradient(
@@ -328,19 +364,19 @@ class _QuizScreenState extends State<QuizScreen> {
       ),
       child: Container(
         decoration: BoxDecoration(
-          color: _bg, // O fundo interior escuro para garantir leitura perfeita
-          borderRadius: BorderRadius.circular(22.5), // Ligeiramente menor para encaixar no padding
+          color: _bg, 
+          borderRadius: BorderRadius.circular(22.5), 
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(22.5),
-          child: const Padding(
-            padding: EdgeInsets.all(22.0),
+          child: Padding(
+            padding: const EdgeInsets.all(22.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Um utente de 65 anos pede uma embalagem de paracetamol para dores articulares, mas refere que sofre de insuficiência hepática grave. Qual deve ser a sua recomendação?',
-                  style: TextStyle(
+                  _perguntas[_currentIndex]['pergunta'], // <- PERGUNTA DO FIREBASE
+                  style: const TextStyle(
                     fontSize: 19,
                     fontWeight: FontWeight.w800,
                     color: Colors.white,
@@ -355,15 +391,14 @@ class _QuizScreenState extends State<QuizScreen> {
     );
   }
 
-  // ───────────────────────── OPÇÕES ─────────────────────────
   Widget _buildOptions({Key? key}) {
     return Column(
       key: key,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        for (int i = 0; i < options.length; i++) ...[
+        for (int i = 0; i < currentOptions.length; i++) ...[
           _buildOptionTile(i),
-          if (i < options.length - 1) const SizedBox(height: 12),
+          if (i < currentOptions.length - 1) const SizedBox(height: 12),
         ],
       ],
     );
@@ -431,7 +466,7 @@ class _QuizScreenState extends State<QuizScreen> {
               const SizedBox(width: 14),
               Expanded(
                 child: Text(
-                  options[index],
+                  currentOptions[index], // <- OPÇÃO DO FIREBASE
                   style: TextStyle(
                     fontSize: 15.5,
                     fontWeight: FontWeight.w600,
@@ -447,7 +482,6 @@ class _QuizScreenState extends State<QuizScreen> {
     );
   }
 
-  // ───────────────────────── CONFIRMAR (discreto) ─────────────────────────
   Widget _buildConfirmPill() {
     final bool visible = selectedOption != null && !isAnswered;
 
@@ -503,7 +537,6 @@ class _QuizScreenState extends State<QuizScreen> {
     );
   }
 
-  // ───────────────────────── PAINEL DE RESULTADO ─────────────────────────
   Widget _buildResultPanel({Key? key}) {
     final bool isCorrect = selectedOption == correctAnswerIndex;
     final Color c = isCorrect ? _ok : _ko;
@@ -560,16 +593,24 @@ class _QuizScreenState extends State<QuizScreen> {
           ],
         ),
         const SizedBox(height: 16),
-
-        _buildAnswerBlock(index: selectedOption!, title: 'A TUA RESPOSTA', color: c),
-
+        _buildAnswerBlock(
+          index: selectedOption!, 
+          title: 'A TUA RESPOSTA', 
+          color: c,
+          showExplanation: isCorrect, // <-- Se acertou mostra, se errou esconde
+        ),
+        
         if (!isCorrect) ...[
           const SizedBox(height: 12),
-          _buildAnswerBlock(index: correctAnswerIndex, title: 'RESPOSTA CORRETA', color: _ok),
+          _buildAnswerBlock(
+            index: correctAnswerIndex, 
+            title: 'RESPOSTA CORRETA', 
+            color: _ok,
+            showExplanation: true, // <-- Na caixa da resposta certa mostra sempre
+          ),
         ],
-
         const SizedBox(height: 20),
-        Align(alignment: Alignment.centerRight, child: _buildNextButton()),
+        _buildNextButton(),
       ],
     );
   }
@@ -578,6 +619,7 @@ class _QuizScreenState extends State<QuizScreen> {
     required int index,
     required String title,
     required Color color,
+    bool showExplanation = true, // <-- NOVO PARÂMETRO
   }) {
     return Container(
       padding: const EdgeInsets.all(18),
@@ -619,7 +661,7 @@ class _QuizScreenState extends State<QuizScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  options[index],
+                  currentOptions[index],
                   style: const TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
@@ -630,35 +672,38 @@ class _QuizScreenState extends State<QuizScreen> {
               ),
             ],
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            child: Divider(height: 1, color: color.withValues(alpha: 0.25)),
-          ),
-          Row(
-            children: [
-              Icon(Icons.lightbulb_outline_rounded, size: 16, color: color),
-              const SizedBox(width: 6),
-              Text(
-                'PORQUÊ?',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 1.4,
-                  color: color,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            explanations[index],
-            style: const TextStyle(
-              fontSize: 14.5,
-              fontWeight: FontWeight.w500,
-              color: Color(0xFFE6E3F0),
-              height: 1.45,
+          // Se o parâmetro showExplanation for true, mostra a linha divisória e o texto do Porquê
+          if (showExplanation) ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              child: Divider(height: 1, color: color.withValues(alpha: 0.25)),
             ),
-          ),
+            Row(
+              children: [
+                Icon(Icons.lightbulb_outline_rounded, size: 16, color: color),
+                const SizedBox(width: 6),
+                Text(
+                  'PORQUÊ?',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.4,
+                    color: color,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _perguntas[_currentIndex]['explicacao'],
+              style: const TextStyle(
+                fontSize: 14.5,
+                fontWeight: FontWeight.w500,
+                color: Color(0xFFE6E3F0),
+                height: 1.45,
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -668,21 +713,32 @@ class _QuizScreenState extends State<QuizScreen> {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: () => Navigator.pop(context),
+        onTap: () {
+          if (_currentIndex < _perguntas.length - 1) {
+            setState(() {
+              _currentIndex++;
+              selectedOption = null;
+              isAnswered = false;
+            });
+          } else {
+            Navigator.pop(context);
+          }
+        },
         borderRadius: BorderRadius.circular(30),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+          width: double.infinity, // <-- Estica para ocupar a largura toda
+          padding: const EdgeInsets.symmetric(vertical: 16), // Um pouco mais alto para ser fácil de clicar
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(30),
           ),
           child: const Row(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center, // <-- Centra o texto e o ícone
             children: [
               Text(
                 'PRÓXIMA CÁPSULA',
                 style: TextStyle(
-                  fontSize: 12.5,
+                  fontSize: 13, // Aumentei ligeiramente (de 12.5 para 13) para compensar o botão maior
                   fontWeight: FontWeight.w900,
                   letterSpacing: 1.2,
                   color: _bg,

@@ -14,7 +14,10 @@ class PraticaScreen extends StatefulWidget {
 }
 
 class _PraticaScreenState extends State<PraticaScreen> with SingleTickerProviderStateMixin {
-  static const Color _accentCyan = Color(0xFF00E5FF);
+  // PALETA NIVEL 20: Adeus ciano fluorescente! Olá roxo sofisticado e lilás clínico.
+  static const Color _primaryPurple = Color(0xFF512DA8);
+  static const Color _accentLilac = Color(0xFFB39DDB);
+  static const Color _surfaceDark = Color(0xFF1E1A2F);
   static const Duration _startTimeout = Duration(seconds: 15);
 
   late final AnimationController _pulseController;
@@ -43,6 +46,11 @@ class _PraticaScreenState extends State<PraticaScreen> with SingleTickerProvider
       vsync: this,
       duration: const Duration(seconds: 2),
     )..repeat(reverse: true);
+
+    // NOVO: arranca a câmara automaticamente (pede permissão na 1.ª vez)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _startCamera();
+    });
   }
 
   @override
@@ -107,9 +115,9 @@ class _PraticaScreenState extends State<PraticaScreen> with SingleTickerProvider
       
     } on TimeoutException {
       if (mounted) setState(() => _localError = 'O pedido expirou. A câmara não respondeu a tempo.');
-    } on MobileScannerException catch (e) {
+    } on MobileScannerException catch (_) {
       if (mounted) setState(() => _localError = 'Erro Nativo da Câmara.');
-    } catch (e) {
+    } catch (_) {
       if (mounted) setState(() => _localError = 'Erro Desconhecido ao arrancar.');
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -162,7 +170,6 @@ class _PraticaScreenState extends State<PraticaScreen> with SingleTickerProvider
       });
       
     } else {
-      // ADEUS FAIXA CYAN. OLÁ NOVA PÁGINA!
       if (!mounted) return;
       
       await Navigator.push(
@@ -172,7 +179,6 @@ class _PraticaScreenState extends State<PraticaScreen> with SingleTickerProvider
         ),
       );
       
-      // Ao fechar o caso clínico e voltar atrás, a câmara acorda
       if (mounted) {
         await _resumeScanner();
         setState(() => _isScanning = true);
@@ -218,31 +224,40 @@ class _PraticaScreenState extends State<PraticaScreen> with SingleTickerProvider
       final info = error != null ? _describeError(error) : (icon: Icons.warning_amber_rounded, title: 'Erro ao iniciar câmara', message: _localError!);
       final footer = '$_diagnosticLog${_describeState(state)}\nAmbiente: ${kIsWeb ? 'Web' : 'Nativo'}';
       
-      // CHAMA O WIDGET DO FICHEIRO DE DESIGN
       return ScannerErrorCard(icon: info.icon, title: info.title, message: info.message, buttonLabel: 'TENTAR NOVAMENTE', footer: footer, onRetry: () => _startCamera(isRetry: true));
     }
 
     if (!state.isInitialized) {
-      return Stack(
-        alignment: Alignment.center,
-        children: [
-          IgnorePointer(child: ScannerReticle(pulseController: _pulseController)),
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (_busy) const CircularProgressIndicator(color: _accentCyan),
-              if (_busy) const SizedBox(height: 16),
-              Text(_busy ? 'A iniciar a câmara...' : '', style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w700)),
-              if (!_busy)
-                ElevatedButton.icon(
-                  onPressed: () => _startCamera(),
-                  icon: const Icon(Icons.power_settings_new, size: 18),
-                  label: const Text('ATIVAR CÂMARA', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 0.5)),
-                  style: ElevatedButton.styleFrom(backgroundColor: _accentCyan, foregroundColor: Colors.black, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20))),
-                ),
+      return Center(
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          margin: const EdgeInsets.symmetric(horizontal: 32),
+          decoration: BoxDecoration(
+            color: _surfaceDark.withValues(alpha: 0.9),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: _accentLilac.withValues(alpha: 0.2)),
+            boxShadow: [
+              BoxShadow(color: Colors.black.withValues(alpha: 0.5), blurRadius: 20, spreadRadius: 5),
             ],
           ),
-        ],
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(color: _accentLilac),
+              const SizedBox(height: 16),
+              const Text(
+                'A inicializar sistema ótico...',
+                style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Aguarde um momento',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 12),
+              ),
+            ],
+          ),
+        ),
       );
     }
 
@@ -269,20 +284,16 @@ class _PraticaScreenState extends State<PraticaScreen> with SingleTickerProvider
               ),
               Positioned.fill(
                 child: IgnorePointer(
-                  child: Container(decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.4))),
+                  child: Container(decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.45))),
                 ),
               ),
               SafeArea(
                 child: Column(
                   children: [
-                    // CHAMA O WIDGET DA BARRA SUPERIOR
                     ScannerTopBar(onBackPressed: () => Navigator.pop(context)),
-                    
                     const Spacer(),
                     _buildCenter(state),
                     const Spacer(),
-                    
-                    // CHAMA O WIDGET DAS INSTRUÇÕES
                     const ScannerInstructionBox(),
                   ],
                 ),
