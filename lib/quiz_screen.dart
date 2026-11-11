@@ -35,6 +35,40 @@ class _QuizScreenState extends State<QuizScreen> {
   // Versão mais clara da cor do nível, para texto/ícones legíveis em fundo escuro
   Color get _accent => Color.lerp(widget.themeColor, Colors.white, 0.3)!;
 
+  // Público-alvo de cada nível
+  static const List<String> _audienceNames = [
+    'Jovens',        // Nível 1
+    'Comunidade',    // Nível 2
+    'TAF',           // Nível 3
+    'Universitários', // Nível 4
+    'Farmacêuticos', // Nível 5
+  ];
+
+  // Extrai o número do nível (ex: de "Nível 2" extrai 2)
+  int get _levelNumber {
+    final match = RegExp(r'\d+').firstMatch(widget.levelName);
+    return match != null ? int.parse(match.group(0)!) : 1;
+  }
+
+  // Retorna a etiqueta do público (ex: "Comunidade")
+  String get _levelLabel {
+    final n = _levelNumber;
+    if (n >= 1 && n <= _audienceNames.length) return _audienceNames[n - 1];
+    return widget.levelName; 
+  }
+
+  // 5. ÍCONE POR PÚBLICO
+  IconData _getIconForLevel() {
+    switch (_levelNumber) {
+      case 1: return Icons.headphones_rounded; // Jovens
+      case 2: return Icons.family_restroom_rounded; // Comunidade
+      case 3: return Icons.medication_rounded; // TAF
+      case 4: return Icons.school_rounded; // Universitários
+      case 5: return Icons.science_rounded; // Farmacêuticos
+      default: return Icons.local_pharmacy_rounded;
+    }
+  }
+
   final List<String> options = [
     'Recomendar a toma de 1g a cada 8 horas, acompanhado de protetor gástrico.',
     'Não dispensar. Encaminhar para o médico, dado o risco de toxicidade hepática grave.',
@@ -42,7 +76,6 @@ class _QuizScreenState extends State<QuizScreen> {
     'Sugerir a troca imediata para Ibuprofeno 400mg, por ser mais seguro para o fígado.',
   ];
 
-  // Uma explicação por opção: aparece a da opção escolhida (e a correta, se errar)
   final List<String> explanations = [
     'O protetor gástrico protege o estômago, não o fígado. Numa insuficiência hepática grave, 3g por dia de paracetamol continuam a representar um risco real de hepatotoxicidade.',
     'O Paracetamol tem um metabolismo hepático intenso. Numa insuficiência hepática grave, este fármaco torna-se altamente hepatotóxico. A dispensa está contraindicada sem reavaliação médica.',
@@ -98,20 +131,39 @@ class _QuizScreenState extends State<QuizScreen> {
         backgroundColor: _bg,
         body: Stack(
           children: [
-            // HALO DE COR DO NÍVEL NO TOPO
+            // 4. PADRÃO DE FUNDO POR NÍVEL (Marca de água do público)
+            Positioned(
+              bottom: -60,
+              right: -50,
+              child: IgnorePointer(
+                child: Transform.rotate(
+                  angle: -0.2,
+                  child: Icon(
+                    _getIconForLevel(),
+                    size: 320,
+                    color: widget.themeColor.withValues(alpha: 0.04), // Muito subtil
+                  ),
+                ),
+              ),
+            ),
+
+            // 6. TRANSIÇÃO HERO (O halo expande a partir da caixa do ecrã anterior)
             Positioned(
               top: -160,
               left: -80,
               right: -80,
               child: IgnorePointer(
-                child: Container(
-                  height: 420,
-                  decoration: BoxDecoration(
-                    gradient: RadialGradient(
-                      colors: [
-                        widget.themeColor.withValues(alpha: 0.45),
-                        Colors.transparent,
-                      ],
+                child: Hero(
+                  tag: 'level_bg_${widget.levelName}', // LIGAÇÃO HERO AQUI!
+                  child: Container(
+                    height: 420,
+                    decoration: BoxDecoration(
+                      gradient: RadialGradient(
+                        colors: [
+                          widget.themeColor.withValues(alpha: 0.45),
+                          Colors.transparent,
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -127,14 +179,13 @@ class _QuizScreenState extends State<QuizScreen> {
                       children: [
                         SingleChildScrollView(
                           physics: const BouncingScrollPhysics(),
-                          padding: const EdgeInsets.fromLTRB(20, 8, 20, 100),
+                          padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               _buildCaseCard(),
-                              const SizedBox(height: 20),
+                              const SizedBox(height: 24),
 
-                              // OPÇÕES  →  (após responder)  →  PAINEL DE EXPLICAÇÃO
                               AnimatedSwitcher(
                                 duration: const Duration(milliseconds: 450),
                                 switchInCurve: Curves.easeOutCubic,
@@ -162,7 +213,7 @@ class _QuizScreenState extends State<QuizScreen> {
                           ),
                         ),
 
-                        // CONFIRMAR: pílula discreta que só aparece quando há uma opção escolhida
+                        // CONFIRMAR: pílula discreta
                         Positioned(
                           bottom: 20,
                           left: 0,
@@ -210,85 +261,94 @@ class _QuizScreenState extends State<QuizScreen> {
             ),
             child: Row(
               children: [
-                Icon(Icons.local_pharmacy_rounded, size: 16, color: _accent),
+                Icon(_getIconForLevel(), size: 16, color: _accent),
                 const SizedBox(width: 6),
+                // 2. A DOSAGEM COMO ASSINATURA (Ex: JOVENS · 100 MG)
                 Text(
-                  widget.levelName.toUpperCase(),
+                  '${_levelLabel.toUpperCase()} · ${_levelNumber * 100} MG',
                   style: TextStyle(
                     color: _accent,
                     fontWeight: FontWeight.w900,
-                    fontSize: 13,
+                    fontSize: 12.5,
                     letterSpacing: 1.0,
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 42),
+          // 3. COMPRIMIDOS COMO PROGRESSO (Substitui o espaço vazio à direita)
+          _buildPillProgress(),
         ],
       ),
     );
   }
 
+  // 3. WIDGET: BOLINHAS (COMPRIMIDOS) DE PROGRESSO
+  Widget _buildPillProgress() {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: List.generate(5, (index) {
+        bool isActive = index < _levelNumber;
+        return Container(
+          margin: const EdgeInsets.only(left: 4),
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: isActive ? Colors.white : Colors.white.withValues(alpha: 0.15),
+          ),
+        );
+      }),
+    );
+  }
+
   // ───────────────────────── CASO CLÍNICO ─────────────────────────
   Widget _buildCaseCard() {
+    // 1. CONTORNO EM GRADIENTE EM VEZ DA BARRA (Borda fina)
     return Container(
+      padding: const EdgeInsets.all(1.5), // A espessura da nossa borda gradiente
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            widget.themeColor.withValues(alpha: 0.8),
+            widget.themeColor.withValues(alpha: 0.1),
+            Colors.transparent,
+          ],
+        ),
         boxShadow: [
           BoxShadow(
-            color: widget.themeColor.withValues(alpha: 0.25),
+            color: widget.themeColor.withValues(alpha: 0.20),
             blurRadius: 40,
             offset: const Offset(0, 16),
           ),
         ],
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
-        child: IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Barra lateral que acompanha sempre a altura do cartão
-              Container(width: 6, color: _accent),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(Icons.medical_information_rounded, size: 18, color: _accent),
-                          const SizedBox(width: 8),
-                          Text(
-                            'CASO CLÍNICO #01',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w900,
-                              color: _accent,
-                              letterSpacing: 1.6,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 14),
-                      const Text(
-                        'Um utente de 65 anos pede uma embalagem de paracetamol para dores articulares, mas refere que sofre de insuficiência hepática grave. Qual deve ser a sua recomendação?',
-                        style: TextStyle(
-                          fontSize: 19,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
-                          height: 1.35,
-                        ),
-                      ),
-                    ],
+      child: Container(
+        decoration: BoxDecoration(
+          color: _bg, // O fundo interior escuro para garantir leitura perfeita
+          borderRadius: BorderRadius.circular(22.5), // Ligeiramente menor para encaixar no padding
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(22.5),
+          child: const Padding(
+            padding: EdgeInsets.all(22.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Um utente de 65 anos pede uma embalagem de paracetamol para dores articulares, mas refere que sofre de insuficiência hepática grave. Qual deve ser a sua recomendação?',
+                  style: TextStyle(
+                    fontSize: 19,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                    height: 1.35,
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -452,7 +512,6 @@ class _QuizScreenState extends State<QuizScreen> {
       key: key,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // VEREDICTO
         Row(
           children: [
             Container(
@@ -502,10 +561,8 @@ class _QuizScreenState extends State<QuizScreen> {
         ),
         const SizedBox(height: 16),
 
-        // OPÇÃO ESCOLHIDA + EXPLICAÇÃO
         _buildAnswerBlock(index: selectedOption!, title: 'A TUA RESPOSTA', color: c),
 
-        // Se errou, mostra também a resposta correta com a sua explicação
         if (!isCorrect) ...[
           const SizedBox(height: 12),
           _buildAnswerBlock(index: correctAnswerIndex, title: 'RESPOSTA CORRETA', color: _ok),

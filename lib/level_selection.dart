@@ -91,7 +91,16 @@ class _LevelSelectionScreenState extends State<LevelSelectionScreen> {
 
   Widget _buildMedicineBox(int levelNumber, String level, String theme, String dosage, String category, String pillCount, Color color, bool isUnlocked) {
     final Color cardColor = isUnlocked ? color : Colors.grey.shade400;
-    final Color topTextColor = isUnlocked ? Colors.white : Colors.white38;
+    const Color topBackground = Colors.white;
+    const Color inkColor = Color(0xFF1E1B26);
+    final Color topTextColor = isUnlocked ? inkColor : Colors.black26;
+
+    // A dosagem usa a cor do nível; nas cores claras (cinza, rosa) escurece
+    // um pouco para continuar legível sobre o fundo branco.
+    final HSLColor hsl = HSLColor.fromColor(cardColor);
+    final Color dosageColor = cardColor.computeLuminance() > 0.45
+        ? hsl.withLightness((hsl.lightness - 0.3).clamp(0.0, 1.0)).toColor()
+        : cardColor;
 
     final bool isLightColor = cardColor.computeLuminance() > 0.6;
     final Color bottomTextColor = isLightColor ? const Color(0xFF1E1B26) : Colors.white;
@@ -117,7 +126,7 @@ class _LevelSelectionScreenState extends State<LevelSelectionScreen> {
       child: Container(
         margin: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(
-          color: const Color(0xFF292533),
+          color: topBackground,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
@@ -126,7 +135,7 @@ class _LevelSelectionScreenState extends State<LevelSelectionScreen> {
               offset: const Offset(0, 8),
             ),
           ],
-          border: Border.all(color: Colors.white.withValues(alpha: 0.12), width: 1.5),
+          border: Border.all(color: Colors.black.withValues(alpha: 0.08), width: 1.5),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -161,7 +170,7 @@ class _LevelSelectionScreenState extends State<LevelSelectionScreen> {
                             fontSize: 24,
                             fontWeight: FontWeight.bold,
                             letterSpacing: -0.5,
-                            color: cardColor,
+                            color: dosageColor,
                           ),
                         ),
                       ],
@@ -172,7 +181,7 @@ class _LevelSelectionScreenState extends State<LevelSelectionScreen> {
                       style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
-                        color: Colors.white.withValues(alpha: 0.55),
+                        color: inkColor.withValues(alpha: 0.55),
                         height: 1.2,
                       ),
                     ),

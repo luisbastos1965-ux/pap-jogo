@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'dart:math' as math;
@@ -19,6 +20,18 @@ import 'pratica_screen.dart';
 
 // Altura partilhada entre a cápsula de modos e a barra de navegação
 const double kBarraAltura = 56;
+const double kEspacoVertical = 28; // distância vertical padrão entre blocos do menu
+
+// Inicializa o Firebase e garante que a sessão fica guardada no browser
+// (IndexedDB) até o utilizador fazer logout.
+Future<void> _initFirebase() async {
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+  if (kIsWeb) {
+    await FirebaseAuth.instance.setPersistence(Persistence.LOCAL);
+  }
+}
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -31,9 +44,7 @@ class FirebaseInitializer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return FutureBuilder(
-      future: Firebase.initializeApp(
-        options: DefaultFirebaseOptions.currentPlatform,
-      ),
+      future: _initFirebase(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return MaterialApp(
@@ -131,12 +142,22 @@ class _SplashScreenState extends State<SplashScreen> {
 
     User? user;
     try {
-      final redirectCred = await FirebaseAuth.instance.getRedirectResult();
-      if (redirectCred != null) {
-        user = redirectCred.user;
-      } else {
-        user = FirebaseAuth.instance.currentUser;
+      // 1) Resultado de um login por redirect (Google). Se falhar, NÃO pode
+      //    deitar fora a sessão guardada, por isso tem o seu próprio try/catch.
+      try {
+        final redirectCred = await FirebaseAuth.instance.getRedirectResult();
+        user = redirectCred?.user;
+      } catch (e) {
+        debugPrint('getRedirectResult falhou (ignorado): $e');
       }
+
+      // 2) Sessão guardada. No web o currentUser é restaurado de forma
+      //    assíncrona e pode ainda estar null aqui; o primeiro evento do
+      //    authStateChanges só chega depois da restauração terminar.
+      user ??= await FirebaseAuth.instance
+          .authStateChanges()
+          .first
+          .timeout(const Duration(seconds: 5), onTimeout: () => FirebaseAuth.instance.currentUser);
 
       if (user != null) {
         final docRef = FirebaseFirestore.instance.collection('users').doc(user.uid);
@@ -281,12 +302,16 @@ class _MenuScreenState extends State<MenuScreen> with SingleTickerProviderStateM
             Positioned(bottom: 100, left: -70, child: _buildMolecule(accentCyan.withValues(alpha: 0.08), 260)),
 
             SafeArea(
-              child: SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                  child: Column(
-                    children: [
+              child: LayoutBuilder(
+                builder: (context, constraints) => SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                    child: IntrinsicHeight(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                        child: Column(
+                          children: [
                       const SizedBox(height: 12),
 
                       Row(
@@ -382,33 +407,35 @@ class _MenuScreenState extends State<MenuScreen> with SingleTickerProviderStateM
                         ],
                       ),
 
-                      const SizedBox(height: 28),
+                      const SizedBox(height: kEspacoVertical),
 
-                      // COMPONENTE EXTRAÍDO (A Dica e os Sensores vivem agora no seu próprio ficheiro)
+                      // A Dica e os Sensores vivem no seu próprio ficheiro
                       const DicaBalcaoCard(),
 
-                      const SizedBox(height: 48), 
-
-                      AnimatedBuilder(
-                        animation: _animation,
-                        builder: (context, child) {
-                          return Transform.translate(
-                            offset: Offset(0, _animation.value),
-                            child: child,
-                          );
-                        },
-                        child: Container(
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(color: primary.withValues(alpha: 0.15), blurRadius: 40, spreadRadius: 5),
-                            ],
+                      // O logo ocupa TODO o espaço livre entre a dica e os botões
+                      // e fica centrado nele (o balançar é só visual, não mexe no layout)
+                      Expanded(
+                        child: Center(
+                          child: AnimatedBuilder(
+                            animation: _animation,
+                            builder: (context, child) {
+                              return Transform.translate(
+                                offset: Offset(0, _animation.value),
+                                child: child,
+                              );
+                            },
+                            child: Container(
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(color: primary.withValues(alpha: 0.15), blurRadius: 40, spreadRadius: 5),
+                                ],
+                              ),
+                              child: Image.asset('assets/images/logo_splash.png', height: 210),
+                            ),
                           ),
-                          child: Image.asset('assets/images/logo_splash.png', height: 210),
                         ),
                       ),
-
-                      const SizedBox(height: 48),
 
                       // CÁPSULA DE SELEÇÃO DE MODO (DIAGNÓSTICO VS CASOS CLÍNICOS)
                       Container(
@@ -456,23 +483,10 @@ class _MenuScreenState extends State<MenuScreen> with SingleTickerProviderStateM
                         ),
                       ),
 
-                      // ESPAÇAMENTO DE SEGURANÇA PARA AFASTAR DA BARRA INFERIOR
-                      const SizedBox(height: 140),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+                      // Mesma distância: botões de jogo -> barra  =  botão volume -> dica
+                      const SizedBox(height: kEspacoVertical),
 
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-      floatingActionButton: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
           Container(
-            margin: const EdgeInsets.symmetric(horizontal: 24),
             height: kBarraAltura,
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.05),
@@ -538,17 +552,27 @@ class _MenuScreenState extends State<MenuScreen> with SingleTickerProviderStateM
               ],
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            'Pharma Inc. © 2027',
-            style: TextStyle(
-              fontSize: 9,
-              fontWeight: FontWeight.w600,
-              color: Colors.white.withValues(alpha: 0.3),
-              letterSpacing: 0.5,
+                      const SizedBox(height: 8),
+                      Text(
+                        'Pharma Inc. © 2027',
+                        style: TextStyle(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white.withValues(alpha: 0.3),
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
