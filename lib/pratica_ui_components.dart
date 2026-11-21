@@ -217,7 +217,7 @@ class ScannerInstructionBox extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            'Tira uma carta do baralho correspondente ao teu nível atual e faz o scan para iniciar o desafio clínico.',
+            'Tira uma carta do baralho e faz o scan para iniciar o desafio clínico.',
             textAlign: TextAlign.center,
             style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 13, height: 1.4),
           ),
