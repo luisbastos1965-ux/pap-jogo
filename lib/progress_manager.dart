@@ -13,6 +13,32 @@ class ProgressManager {
   int selectedAudience = 3; // 1: Juniores, 2: Comunidade, 3: TAF, 4: Univ, 5: Farmacêuticos
   String playerName = 'Farmacêutico';
 
+  // true só quando o público é conhecido de facto (vem do Firestore ou foi
+  // escolhido pelo utilizador). O valor 3 acima é apenas um valor por defeito.
+  bool hasAudience = false;
+
+  /// Converte o valor guardado em `audience` (int, double ou String) num
+  /// público válido (1 a 5). Devolve null se estiver em falta ou for inválido.
+  static int? parseAudience(dynamic raw) {
+    int? id;
+    if (raw is int) {
+      id = raw;
+    } else if (raw is num) {
+      id = raw.toInt();
+    } else if (raw != null) {
+      id = int.tryParse(raw.toString().trim());
+    }
+    return (id != null && id >= 1 && id <= 5) ? id : null;
+  }
+
+  /// Guarda em memória o perfil escolhido no registo, para o caso de o
+  /// Firestore ainda não o ter (ex.: documento por criar ou escrita falhada).
+  void applyLocalProfile({required String name, required int audience}) {
+    playerName = name;
+    selectedAudience = audience;
+    hasAudience = true;
+  }
+
   String get careerTitle {
     switch (currentLevel) {
       case 1:
@@ -65,7 +91,9 @@ class ProgressManager {
         final data = doc.data()!;
         playerName = data['name'] ?? 'Jogador';
         currentXP = data['xp'] ?? 0;
-        selectedAudience = data['audience'] ?? 3;
+        final int? audience = parseAudience(data['audience']);
+        selectedAudience = audience ?? 3;
+        hasAudience = audience != null;
         _calculateLevel();
       }
     } catch (e) {
@@ -91,6 +119,7 @@ class ProgressManager {
 
   Future<void> updateOfficialAudience(int newAudience) async {
     selectedAudience = newAudience;
+    hasAudience = true;
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       await FirebaseFirestore.instance.collection('users').doc(user.uid).update({

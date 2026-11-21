@@ -15,8 +15,7 @@ const Map<int, String> kAudienceNames = {
 
 /// Converte o valor de `audience` (int ou String) no nome do público.
 String audienceLabel(dynamic raw) {
-  final id = raw is int ? raw : int.tryParse(raw?.toString() ?? '');
-  return kAudienceNames[id] ?? 'Sem público';
+  return kAudienceNames[ProgressManager.parseAudience(raw)] ?? 'Sem público';
 }
 
 class EscalaScreen extends StatefulWidget {
@@ -258,7 +257,6 @@ class _EscalaScreenState extends State<EscalaScreen>
 
     final currentUserId = FirebaseAuth.instance.currentUser?.uid;
     final int userXP = ProgressManager().currentXP;
-    const String userRole = 'Sem público';
 
     return Scaffold(
       backgroundColor: const Color(0xFF1E1B26),
@@ -374,81 +372,14 @@ class _EscalaScreenState extends State<EscalaScreen>
                         );
                       }
 
-                      List<Map<String, dynamic>> list = [];
-
-                      if (snapshot.hasData) {
-                        for (var doc in snapshot.data!.docs) {
-                          Map<String, dynamic> data = {};
-                          try {
-                            data = doc.data() as Map<String, dynamic>;
-                          } catch (_) {}
-
-                          String docId = doc.id;
-                          String name =
-                              data['name']?.toString() ?? 'Farmacêutico';
-
-                          int xp = 0;
-                          var rawXp = data['xp'];
-                          if (rawXp is int) {
-                            xp = rawXp;
-                          } else if (rawXp != null) {
-                            xp =
-                                int.tryParse(rawXp.toString()) ??
-                                (docId == currentUserId ? userXP : 0);
-                          } else if (docId == currentUserId) {
-                            xp = userXP;
-                          }
-
-                          String role = data['audience'] != null
-                              ? audienceLabel(data['audience'])
-                              : (data['role']?.toString() ?? 'Sem público');
-
-                          list.add({
-                            'uid': docId,
-                            'name': docId == currentUserId ? '$name (Tu)' : name,
-                            'xp': xp,
-                            'role': role,
-                            'isUser': docId == currentUserId,
-                            'capsuleTop': data['capsuleTop'],
-                            'capsuleBottom': data['capsuleBottom'],
-                          });
-                        }
-                      }
-
-                      bool hasUser = false;
-                      for (int i = 0; i < list.length; i++) {
-                        if (list[i]['isUser'] == true) {
-                          hasUser = true;
-                          break;
-                        }
-                      }
-
-                      if (!hasUser) {
-                        list.add({
-                          'uid': currentUserId ?? 'local_user',
-                          'name': 'Estagiário (Tu)',
-                          'xp': userXP,
-                          'role': userRole,
-                          'isUser': true,
-                        });
-                      }
-
-                      list.sort((a, b) {
-                        int valA = a['xp'] as int;
-                        int valB = b['xp'] as int;
-                        return valB.compareTo(valA);
-                      });
-
-                      List<Map<String, dynamic>> filtered = [];
-                      if (_selectedCategory == 'Global') {
-                        filtered = list;
-                      } else {
-                        for (int i = 0; i < list.length; i++) {
-                          if (list[i]['role'] == _selectedCategory) {
-                            filtered.add(list[i]);
-                          }
-                        }
-                      }
+                      // Fonte única de verdade: a mesma lista ordenada alimenta
+                      // a lista principal e a secção "A TUA POSIÇÃO NA ESCALA".
+                      final List<Map<String, dynamic>> list = _buildRankedPlayers(
+                        snapshot.data,
+                        currentUserId,
+                        userXP,
+                      );
+                      final List<Map<String, dynamic>> filtered = _filterByCategory(list);
 
                       if (filtered.isEmpty) {
                         return const Center(
@@ -525,41 +456,26 @@ class _EscalaScreenState extends State<EscalaScreen>
                             .collection('users')
                             .snapshots(),
                         builder: (context, snapshot) {
-                          int userRank = 99;
+                          // 0 = ainda sem dados (mostra "#–" em vez de um valor falso)
+                          int userRank = 0;
+                          int userRankXp = userXP;
+                          String userRankRole = _currentUserFallbackRole();
                           if (snapshot.hasData) {
-                            List<Map<String, dynamic>> checkList = [];
-                            for (var doc in snapshot.data!.docs) {
-                              Map<String, dynamic> data = {};
-                              try {
-                                data = doc.data() as Map<String, dynamic>;
-                              } catch (_) {}
+                            final List<Map<String, dynamic>> all = _buildRankedPlayers(
+                              snapshot.data,
+                              currentUserId,
+                              userXP,
+                            );
+                            final List<Map<String, dynamic>> visible = _filterByCategory(all);
 
-                              int xp = 0;
-                              var rawXp = data['xp'];
-                              if (rawXp is int) {
-                                xp = rawXp;
-                              } else if (rawXp != null) {
-                                xp = int.tryParse(rawXp.toString()) ?? 0;
-                              }
-
-                              checkList.add({
-                                'uid': doc.id,
-                                'xp': xp,
-                                'isUser': doc.id == currentUserId,
-                              });
-                            }
-
-                            checkList.sort((a, b) {
-                              int valA = a['xp'] as int;
-                              int valB = b['xp'] as int;
-                              return valB.compareTo(valA);
-                            });
-
-                            for (int i = 0; i < checkList.length; i++) {
-                              if (checkList[i]['isUser'] == true) {
-                                userRank = i + 1;
-                                break;
-                              }
+                            // Posição na lista que está a ser mostrada; se o utilizador
+                            // não pertencer ao filtro ativo, usa a posição na lista global.
+                            final int visibleIdx = visible.indexWhere((p) => p['isUser'] == true);
+                            final int globalIdx = all.indexWhere((p) => p['isUser'] == true);
+                            userRank = visibleIdx >= 0 ? visibleIdx + 1 : globalIdx + 1;
+                            if (globalIdx >= 0) {
+                              userRankXp = all[globalIdx]['xp'] as int;
+                              userRankRole = all[globalIdx]['role'] as String;
                             }
                           }
 
@@ -572,7 +488,8 @@ class _EscalaScreenState extends State<EscalaScreen>
                                 : null,
                             builder: (context, userDocSnapshot) {
                               String dynamicName = 'Estagiário';
-                              String dynamicRole = userRole;
+                              // O público vem da mesma entrada da lista principal
+                              final String dynamicRole = userRankRole;
                               Map<String, dynamic>? userData; // A VARIÁVEL É DECLARADA AQUI FORA!
 
                               if (userDocSnapshot.hasData &&
@@ -584,19 +501,13 @@ class _EscalaScreenState extends State<EscalaScreen>
                                   if (userData['name'] != null) {
                                     dynamicName = userData['name'].toString();
                                   }
-                                  
-                                  if (userData['audience'] != null) {
-                                    dynamicRole = audienceLabel(userData['audience']);
-                                  } else if (userData['role'] != null) {
-                                    dynamicRole = userData['role'].toString();
-                                  }
                                 }
                               }
 
                               return _buildRankCard(
                                 rank: userRank,
                                 name: '$dynamicName (Tu)',
-                                xp: userXP,
+                                xp: userRankXp,
                                 role: dynamicRole,
                                 isUser: true,
                                 capsuleTop: userData?['capsuleTop'] as int?,
@@ -615,6 +526,100 @@ class _EscalaScreenState extends State<EscalaScreen>
         ],
       ),
     );
+  }
+
+  /// Público do utilizador atual quando o documento ainda não existe ou não
+  /// tem `audience`: usa o que foi escolhido no início, se for conhecido.
+  String _currentUserFallbackRole() {
+    final progress = ProgressManager();
+    return progress.hasAudience
+        ? audienceLabel(progress.selectedAudience)
+        : 'Sem público';
+  }
+
+  /// Constrói a lista completa de jogadores, já ordenada. É usada tanto pela
+  /// lista principal como pela secção "A TUA POSIÇÃO NA ESCALA", para que a
+  /// posição do utilizador seja sempre calculada exatamente da mesma forma
+  /// (incluindo o fallback quando ainda não existe `users/{uid}`).
+  List<Map<String, dynamic>> _buildRankedPlayers(
+    QuerySnapshot? snapshot,
+    String? currentUserId,
+    int userXP,
+  ) {
+    final String userRole = _currentUserFallbackRole();
+    final List<Map<String, dynamic>> list = [];
+
+    if (snapshot != null) {
+      for (var doc in snapshot.docs) {
+        Map<String, dynamic> data = {};
+        try {
+          data = doc.data() as Map<String, dynamic>;
+        } catch (_) {}
+
+        String docId = doc.id;
+        String name = data['name']?.toString() ?? 'Farmacêutico';
+
+        int xp = 0;
+        var rawXp = data['xp'];
+        if (rawXp is int) {
+          xp = rawXp;
+        } else if (rawXp != null) {
+          xp = int.tryParse(rawXp.toString()) ??
+              (docId == currentUserId ? userXP : 0);
+        } else if (docId == currentUserId) {
+          xp = userXP;
+        }
+
+        // Público: `audience` válido > `role` antigo > (só para o utilizador
+        // atual) o público escolhido no início > "Sem público".
+        String role;
+        if (ProgressManager.parseAudience(data['audience']) != null) {
+          role = audienceLabel(data['audience']);
+        } else if ((data['role']?.toString() ?? '').isNotEmpty) {
+          role = data['role'].toString();
+        } else {
+          role = docId == currentUserId ? userRole : 'Sem público';
+        }
+
+        list.add({
+          'uid': docId,
+          'name': docId == currentUserId ? '$name (Tu)' : name,
+          'xp': xp,
+          'role': role,
+          'isUser': docId == currentUserId,
+          'capsuleTop': data['capsuleTop'],
+          'capsuleBottom': data['capsuleBottom'],
+        });
+      }
+    }
+
+    // Utilizador ainda sem documento em users/{uid} (ou fallback local)
+    if (!list.any((p) => p['isUser'] == true)) {
+      list.add({
+        'uid': currentUserId ?? 'local_user',
+        'name': 'Estagiário (Tu)',
+        'xp': userXP,
+        'role': userRole,
+        'isUser': true,
+      });
+    }
+
+    // XP descendente; em caso de empate, desempata por uid. O sort do Dart não
+    // é estável, por isso sem este critério a ordem dos empatados poderia
+    // variar entre duas ordenações da mesma lista.
+    list.sort((a, b) {
+      final int byXp = (b['xp'] as int).compareTo(a['xp'] as int);
+      if (byXp != 0) return byXp;
+      return (a['uid'] as String).compareTo(b['uid'] as String);
+    });
+
+    return list;
+  }
+
+  /// Aplica o filtro de categoria ativo à lista já ordenada.
+  List<Map<String, dynamic>> _filterByCategory(List<Map<String, dynamic>> list) {
+    if (_selectedCategory == 'Global') return list;
+    return list.where((p) => p['role'] == _selectedCategory).toList();
   }
 
   Widget _buildMolecule(Color color, double size) {
@@ -714,7 +719,7 @@ class _EscalaScreenState extends State<EscalaScreen>
             ),
             child: Center(
               child: Text(
-                '#$rank',
+                rank > 0 ? '#$rank' : '#–',
                 style: const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.w900,

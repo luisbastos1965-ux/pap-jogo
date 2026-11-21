@@ -67,23 +67,76 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     );
   }
 
-  Future<void> _saveUserToFirestore(User user, String defaultName) async {
-    final docRef = FirebaseFirestore.instance.collection('users').doc(user.uid);
-    final doc = await docRef.get();
+  // Mínimos de validação do registo (o Firebase Auth exige pelo menos 6 caracteres).
+  static const int _minPasswordLength = 6;
+  static final RegExp _emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
 
-    // Só cria o documento se ele não existir
-    if (!doc.exists) {
-      await docRef.set({
-        'name': _nameController.text.trim().isNotEmpty ? _nameController.text.trim() : defaultName,
-        // Usa o nível selecionado, ou assume 5 por segurança se criar conta via ecrã de Login acidentalmente
-        'audience': _selectedAudience ?? 5, 
-        'xp': 0,
-        'level': 1,
-        'careerTitle': 'Estagiário/a',
-        'createdAt': FieldValue.serverTimestamp(),
-      });
+  /// Garante que existe o perfil em `users/{uid}` e carrega o progresso.
+  ///
+  /// NUNCA lança excepções: a sessão no Firebase Auth já está válida quando
+  /// esta função corre, por isso um problema no Firestore não pode deixar o
+  /// utilizador preso no ecrã de login. Se algo falhar, o erro fica no log
+  /// (com o passo identificado) e o SplashScreen volta a tentar criar o perfil
+  /// no arranque seguinte.
+  Future<void> _ensureUserProfile(
+    User user,
+    String name, {
+    bool isNewUser = false,
+  }) async {
+    final docRef = FirebaseFirestore.instance.collection('users').doc(user.uid);
+
+    // 1) Perfil (só é criado se ainda não existir)
+    try {
+      DocumentSnapshot<Map<String, dynamic>>? snap;
+      if (!isNewUser) {
+        // Conta nova => sabemos que não há documento, por isso não fazemos
+        // o get() prévio (evita ler um documento inexistente).
+        snap = await docRef.get();
+      }
+
+      if (snap == null || !snap.exists) {
+        await docRef.set({
+          'name': name,
+          // Nível escolhido; assume 5 por segurança se vier do ecrã de Login
+          'audience': _selectedAudience ?? 5,
+          'xp': 0,
+          'level': 1,
+          'careerTitle': 'Estagiário/a',
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      } else if (_selectedAudience != null &&
+          ProgressManager.parseAudience(snap.data()?['audience']) == null) {
+        // Documento incompleto (sem público válido): completa-o com a escolha
+        // feita agora, sem tocar nos restantes campos (XP, nível, etc.).
+        await docRef.set({'audience': _selectedAudience}, SetOptions(merge: true));
+      }
+    } catch (e) {
+      debugPrint('[Auth] Passo "perfil Firestore" falhou: $e');
     }
-    await ProgressManager().loadUserData();
+
+    // 2) Nome visível no menu (o MenuScreen lê currentUser.displayName)
+    if (isNewUser && (user.displayName ?? '').isEmpty) {
+      try {
+        await user.updateDisplayName(name);
+        await user.reload();
+      } catch (e) {
+        debugPrint('[Auth] Passo "displayName" falhou: $e');
+      }
+    }
+
+    // 3) Progresso (XP, nível, título)
+    try {
+      await ProgressManager().loadUserData();
+    } catch (e) {
+      debugPrint('[Auth] Passo "ProgressManager.loadUserData" falhou: $e');
+    }
+
+    // 4) Se o Firestore não devolveu o público (escrita ou leitura falhada),
+    //    guarda a escolha em memória para o resto da app (Escala incluída).
+    final progress = ProgressManager();
+    if (!progress.hasAudience && _selectedAudience != null) {
+      progress.applyLocalProfile(name: name, audience: _selectedAudience!);
+    }
   }
 
   void _navigateToMenu() {
@@ -91,8 +144,30 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const MenuScreen()));
   }
 
+  String _authErrorMessage(FirebaseAuthException e) {
+    switch (e.code) {
+      case 'email-already-in-use':
+        return 'Este email já tem uma cédula. Usa "Já tem cédula? Validar".';
+      case 'invalid-email':
+        return 'O email introduzido não é válido.';
+      case 'weak-password':
+        return 'A palavra-passe é demasiado fraca (mínimo $_minPasswordLength caracteres).';
+      case 'user-not-found':
+      case 'wrong-password':
+      case 'invalid-credential':
+        return 'Email ou palavra-passe incorretos.';
+      case 'too-many-requests':
+        return 'Demasiadas tentativas. Tenta novamente dentro de instantes.';
+      case 'network-request-failed':
+        return 'Sem ligação à internet. Verifica a rede e tenta novamente.';
+      default:
+        return e.message ?? 'Erro de autenticação.';
+    }
+  }
+
   Future<void> _signInQuick() async {
-    if (_nameController.text.trim().isEmpty) {
+    final name = _nameController.text.trim();
+    if (name.isEmpty) {
       _showError('Escreve o teu nome para o Acesso Rápido.');
       return;
     }
@@ -104,10 +179,19 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     setState(() => _isLoading = true);
     try {
       final cred = await FirebaseAuth.instance.signInAnonymously();
-      if (cred.user != null) {
-        await _saveUserToFirestore(cred.user!, _nameController.text.trim());
-        _navigateToMenu();
+      final user = cred.user;
+      if (user == null) {
+        _showError('Não foi possível iniciar o Acesso Rápido. Tenta novamente.');
+        return;
       }
+      await _ensureUserProfile(
+        user,
+        name,
+        isNewUser: cred.additionalUserInfo?.isNewUser ?? false,
+      );
+      _navigateToMenu();
+    } on FirebaseAuthException catch (e) {
+      _showError('Erro no Acesso Rápido: ${_authErrorMessage(e)}');
     } catch (e) {
       _showError('Erro no Acesso Rápido: $e');
     } finally {
@@ -133,12 +217,17 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
       } catch (popupError) {
         debugPrint('Popup bloqueado ou não suportado, a usar redirect: $popupError');
         await FirebaseAuth.instance.signInWithRedirect(googleProvider);
-        return; 
+        return;
       }
 
-      if (cred.user != null) {
-        // Se a conta já existir, o _saveUserToFirestore apenas ignora e avança
-        await _saveUserToFirestore(cred.user!, cred.user!.displayName ?? 'Farmacêutico');
+      final user = cred.user;
+      if (user != null) {
+        // Se a conta já existir, o perfil existente é mantido
+        await _ensureUserProfile(
+          user,
+          user.displayName ?? 'Farmacêutico',
+          isNewUser: cred.additionalUserInfo?.isNewUser ?? false,
+        );
         _navigateToMenu();
       }
     } catch (e) {
@@ -151,34 +240,52 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
   Future<void> _submitEmailAuth() async {
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
+    final name = _nameController.text.trim();
 
     if (email.isEmpty || password.isEmpty) {
       _showError('Preenche o email e a palavra-passe.');
       return;
     }
-    if (!_isLogin && _nameController.text.trim().isEmpty) {
-      _showError('Preenche o teu nome para criar a conta.');
+    if (!_emailRegex.hasMatch(email)) {
+      _showError('O email introduzido não é válido.');
       return;
     }
-    if (!_isLogin && _selectedAudience == null) {
-      _showError('Por favor, seleciona o teu nível na escala.');
-      return;
+    if (!_isLogin) {
+      if (name.isEmpty) {
+        _showError('Preenche o teu nome para criar a conta.');
+        return;
+      }
+      if (_selectedAudience == null) {
+        _showError('Por favor, seleciona o teu nível na escala.');
+        return;
+      }
+      if (password.length < _minPasswordLength) {
+        _showError('A palavra-passe deve ter pelo menos $_minPasswordLength caracteres.');
+        return;
+      }
     }
 
     setState(() => _isLoading = true);
     try {
       if (_isLogin) {
-        await FirebaseAuth.instance.signInWithEmailAndPassword(email: email, password: password);
-        await ProgressManager().loadUserData();
+        final cred = await FirebaseAuth.instance.signInWithEmailAndPassword(email: email, password: password);
+        final user = cred.user;
+        if (user != null) {
+          await _ensureUserProfile(user, user.displayName ?? 'Farmacêutico');
+        }
       } else {
+        // O Firebase já deixa a sessão iniciada após criar a conta.
         final cred = await FirebaseAuth.instance.createUserWithEmailAndPassword(email: email, password: password);
-        if (cred.user != null) {
-          await _saveUserToFirestore(cred.user!, _nameController.text.trim());
+        final user = cred.user;
+        if (user != null) {
+          await _ensureUserProfile(user, name, isNewUser: true);
         }
       }
       _navigateToMenu();
     } on FirebaseAuthException catch (e) {
-      _showError(e.message ?? 'Erro de autenticação.');
+      _showError(_authErrorMessage(e));
+    } catch (e) {
+      _showError('Erro inesperado: $e');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
