@@ -6,6 +6,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'progress_manager.dart';
+
 // -------------------------------------------------------------------------
 // Tema de cada nível: nome, cor e ícone (mesmos ícones do modo quiz).
 // Se as cores do level_selection.dart forem outras, muda-as aqui.
@@ -48,7 +50,11 @@ class _CasoClinicoScreenState extends State<CasoClinicoScreen> {
   String _errorMessage = '';
 
   String _perfilJogadorAtivo = '1'; // nível que está a ser mostrado
+  // mg por caso resolvido: igual para todos os níveis
+  static const int _xpPorCaso = 150;
+
   String _meuNivel = '1'; // público (audience) da conta do jogador
+  bool _publicoConhecido = false; // false se não foi possível saber o público da conta
   Set<String> _niveisDisponiveis = {}; // níveis que existem neste caso no Firestore
   String _aviso = '';
   int _loadToken = 0; // evita que um carregamento antigo sobreponha um novo
@@ -58,6 +64,10 @@ class _CasoClinicoScreenState extends State<CasoClinicoScreen> {
   Color get _accent => Color.lerp(_cor, Colors.white, 0.3)!;
   int get _nivelNum => int.tryParse(_perfilJogadorAtivo) ?? 1;
 
+  // Só conta para o XP se o caso for jogado no nível do público da conta
+  // (simular outro perfil, ou ver a versão mais próxima, não dá mg).
+  bool get _contaParaXp => _publicoConhecido && _perfilJogadorAtivo == _meuNivel;
+
   @override
   void initState() {
     super.initState();
@@ -66,25 +76,32 @@ class _CasoClinicoScreenState extends State<CasoClinicoScreen> {
 
   // Lê o público (audience) da conta e abre o caso logo nesse nível
   Future<void> _iniciar() async {
-    final String nivel = await _lerNivelDoJogador();
+    final String? nivelConta = await _lerNivelDoJogador();
     if (!mounted) return;
+    final String nivel = nivelConta ?? '1';
     setState(() {
+      _publicoConhecido = nivelConta != null;
       _meuNivel = nivel;
       _perfilJogadorAtivo = nivel;
     });
     _loadCaseFromFirebase();
   }
 
-  Future<String> _lerNivelDoJogador() async {
+  // Devolve null se não for possível saber o público da conta
+  Future<String?> _lerNivelDoJogador() async {
+    // 1) Público já conhecido em memória (escolhido no registo ou carregado do perfil)
+    final ProgressManager progress = ProgressManager();
+    if (progress.hasAudience) return '${progress.selectedAudience}';
+
+    // 2) Caso contrário, lê-o do Firestore
     try {
       final User? user = FirebaseAuth.instance.currentUser;
-      if (user == null) return '1';
+      if (user == null) return null;
       final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
-      final dynamic a = doc.data()?['audience'];
-      final int? n = a is num ? a.toInt() : int.tryParse(a?.toString() ?? '');
-      if (n != null && n >= 1 && n <= _temas.length) return '$n';
+      final int? n = ProgressManager.parseAudience(doc.data()?['audience']);
+      if (n != null) return '$n';
     } catch (_) {}
-    return '1';
+    return null;
   }
 
   // Nível disponível mais perto do pedido (em caso de empate, o mais baixo)
@@ -181,7 +198,7 @@ class _CasoClinicoScreenState extends State<CasoClinicoScreen> {
           'cenario': '${levelData['historia_extra'] ?? ''}\n\n${levelData['pergunta'] ?? ''}'.trim(),
           'opcoes': opcoesMapeadas,
           'explicacao': levelData['explicacao'] ?? '',
-          'xp': (int.tryParse(nivelAUsar) ?? 1) * 50,
+          'xp': _xpPorCaso,
         };
         _isLoading = false;
       });
@@ -207,12 +224,35 @@ class _CasoClinicoScreenState extends State<CasoClinicoScreen> {
   }
 
   void _confirmAnswer() {
-    if (_selectedOptionIndex == null || _hasAnswered) return;
-    HapticFeedback.mediumImpact();
-    setState(() => _hasAnswered = true);
-    final bool isCorrect = _opcoes[_selectedOptionIndex!]['correta'] == true;
-    _showResultBottomSheet(isCorrect);
+  if (_selectedOptionIndex == null || _hasAnswered) return;
+  HapticFeedback.mediumImpact();
+  setState(() => _hasAnswered = true);
+  final bool isCorrect = _opcoes[_selectedOptionIndex!]['correta'] == true;
+  // Só atribui mg se acertou E o caso foi jogado no nível do público da conta
+  final bool ganhaXp = isCorrect && _contaParaXp;
+  if (ganhaXp) {
+    ProgressManager().addXP(_xpPorCaso).then((guardou) {
+      if (!guardou && mounted) _avisarFalhaGravacao();
+    });
   }
+  _showResultBottomSheet(isCorrect, ganhaXp);
+}
+
+// O XP foi somado localmente mas não ficou gravado na cloud: mostra o motivo
+void _avisarFalhaGravacao() {
+  ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(
+      SnackBar(
+        content: Text(
+          'Não foi possível guardar o XP: ${ProgressManager().lastSyncError ?? 'erro desconhecido'}',
+        ),
+        backgroundColor: Colors.redAccent,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 8),
+      ),
+    );
+}
 
   // ------------------------------------------------------------ BOTTOM SHEETS
   void _mostrarSeletorNivel() {
@@ -349,7 +389,7 @@ class _CasoClinicoScreenState extends State<CasoClinicoScreen> {
     );
   }
 
-  void _showResultBottomSheet(bool isCorrect) {
+  void _showResultBottomSheet(bool isCorrect, bool ganhaXp) {
     final Color c = isCorrect ? _ok : _ko;
 
     showModalBottomSheet(
@@ -390,7 +430,7 @@ class _CasoClinicoScreenState extends State<CasoClinicoScreen> {
                   textAlign: TextAlign.center,
                   style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 15, height: 1.55),
                 ),
-                if (isCorrect) ...[
+                if (ganhaXp) ...[
                   const SizedBox(height: 20),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -410,6 +450,13 @@ class _CasoClinicoScreenState extends State<CasoClinicoScreen> {
                         ),
                       ],
                     ),
+                  ),
+                ] else if (isCorrect) ...[
+                  const SizedBox(height: 20),
+                  Text(
+                    'Simulação de outro nível: não conta para o teu XP.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 12, fontWeight: FontWeight.w600),
                   ),
                 ],
                 const SizedBox(height: 24),

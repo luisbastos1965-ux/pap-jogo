@@ -129,6 +129,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
 
   void _signOut(BuildContext context) async {
     await FirebaseAuth.instance.signOut();
+    ProgressManager().reset(); // a conta seguinte não herda XP/nível/público
     if (!context.mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (context) => const AuthScreen()),
@@ -137,6 +138,8 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
   }
 
   void _showLogoutDialog(BuildContext context) {
+    // Um visitante (login anónimo) não consegue voltar à mesma conta depois de sair
+    final bool isVisitor = FirebaseAuth.instance.currentUser?.isAnonymous ?? false;
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -149,7 +152,12 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
             Text('Fim de Turno', style: TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF1E1B26), fontSize: 18)),
           ],
         ),
-        content: const Text('Vais desvincular a tua Cédula Profissional. Confirmas?', style: TextStyle(fontWeight: FontWeight.w600, color: Colors.black87)),
+        content: Text(
+          isVisitor
+              ? 'Como visitante, ao sair perdes o acesso a este progresso para sempre. Confirmas?'
+              : 'Vais desvincular a tua Cédula Profissional. Confirmas?',
+          style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.black87),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),

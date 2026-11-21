@@ -110,8 +110,9 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
         // feita agora, sem tocar nos restantes campos (XP, nível, etc.).
         await docRef.set({'audience': _selectedAudience}, SetOptions(merge: true));
       }
-    } catch (e) {
+        } catch (e) {
       debugPrint('[Auth] Passo "perfil Firestore" falhou: $e');
+      ProgressManager().lastSyncError = 'perfil não criado: $e';
     }
 
     // 2) Nome visível no menu (o MenuScreen lê currentUser.displayName)

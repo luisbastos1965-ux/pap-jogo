@@ -22,7 +22,8 @@ class QuizScreen extends StatefulWidget {
 class _QuizScreenState extends State<QuizScreen> {
   int? selectedOption;
   bool isAnswered = false;
-  static const int _xpReward = 150;
+  static const int _xpReward = 50; // por resposta certa, igual em todos os níveis
+  bool _ganhouXp = false; // se a última resposta certa contou para o XP
 
   final AudioPlayer _sfxPlayer = AudioPlayer();
 
@@ -40,8 +41,9 @@ class _QuizScreenState extends State<QuizScreen> {
   int get correctAnswerIndex {
     if (_perguntas.isEmpty) return 0;
     final String letra =
-        (_perguntas[_currentIndex]['resposta_correta'] ?? 'A').toString();
-    return letters.indexOf(letra.toUpperCase());
+        (_perguntas[_currentIndex]['resposta_correta'] ?? 'A').toString().trim().toUpperCase();
+    // -1 se o dado estiver mal formatado (em vez de rebentar mais à frente)
+    return letra.isEmpty ? -1 : letters.indexOf(letra[0]);
   }
 
   List<String> get currentOptions {
@@ -62,6 +64,12 @@ class _QuizScreenState extends State<QuizScreen> {
     'Universitários',
     'Farmacêuticos',
   ];
+
+  // Só conta para o XP o nível que corresponde ao público da conta
+  bool get _contaParaXp {
+    final progress = ProgressManager();
+    return progress.hasAudience && progress.selectedAudience == _levelNumber;
+  }
 
   int get _levelNumber {
     final match = RegExp(r'\d+').firstMatch(widget.levelName);
@@ -107,19 +115,35 @@ class _QuizScreenState extends State<QuizScreen> {
           .where('nivel', isEqualTo: _levelNumber)
           .get();
 
+      if (!mounted) return;
       setState(() {
         _perguntas = snapshot.docs.map((doc) => doc.data()).toList();
         _perguntas.shuffle(); // Baralha a ordem das perguntas
         _isLoading = false;
       });
     } catch (e) {
-      print("Erro ao carregar o Firestore: $e");
+      debugPrint("Erro ao carregar o Firestore: $e");
+      if (!mounted) return;
       setState(() => _isLoading = false);
     }
   }
 
   void _playSound(String fileName) {
     _sfxPlayer.play(AssetSource('sounds/$fileName'));
+  }
+
+  // O XP foi somado localmente mas não ficou gravado na cloud: mostra o motivo
+  void _avisarFalhaGravacao() {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text('Não foi possível guardar o XP: ${ProgressManager().lastSyncError ?? 'erro desconhecido'}'),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 8),
+        ),
+      );
   }
 
   void _select(int index) {
@@ -135,7 +159,12 @@ class _QuizScreenState extends State<QuizScreen> {
 
     if (selectedOption == correctAnswerIndex) {
       _playSound('correct.mp3');
-      ProgressManager().addXP(_xpReward);
+      _ganhouXp = _contaParaXp;
+      if (_ganhouXp) {
+        ProgressManager().addXP(_xpReward).then((guardou) {
+          if (!guardou && mounted) _avisarFalhaGravacao();
+        });
+      }
       HapticFeedback.mediumImpact();
     } else {
       _playSound('wrong.mp3');
@@ -375,7 +404,7 @@ class _QuizScreenState extends State<QuizScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  _perguntas[_currentIndex]['pergunta'], // <- PERGUNTA DO FIREBASE
+                  (_perguntas[_currentIndex]['pergunta'] ?? '').toString(), // <- PERGUNTA DO FIREBASE
                   style: const TextStyle(
                     fontSize: 19,
                     fontWeight: FontWeight.w800,
@@ -572,7 +601,7 @@ class _QuizScreenState extends State<QuizScreen> {
                 ),
               ),
             ),
-            if (isCorrect)
+            if (isCorrect && _ganhouXp)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
@@ -592,6 +621,17 @@ class _QuizScreenState extends State<QuizScreen> {
               ),
           ],
         ),
+        if (isCorrect && !_ganhouXp) ...[
+          const SizedBox(height: 10),
+          Text(
+            'Fora do teu nível: não conta para o XP.',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Colors.white.withValues(alpha: 0.5),
+            ),
+          ),
+        ],
         const SizedBox(height: 16),
         _buildAnswerBlock(
           index: selectedOption!, 
@@ -600,7 +640,7 @@ class _QuizScreenState extends State<QuizScreen> {
           showExplanation: isCorrect, // <-- Se acertou mostra, se errou esconde
         ),
         
-        if (!isCorrect) ...[
+        if (!isCorrect && correctAnswerIndex >= 0) ...[
           const SizedBox(height: 12),
           _buildAnswerBlock(
             index: correctAnswerIndex, 
@@ -695,7 +735,7 @@ class _QuizScreenState extends State<QuizScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              _perguntas[_currentIndex]['explicacao'],
+              (_perguntas[_currentIndex]['explicacao'] ?? '').toString(),
               style: const TextStyle(
                 fontSize: 14.5,
                 fontWeight: FontWeight.w500,

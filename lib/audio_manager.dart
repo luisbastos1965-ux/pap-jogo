@@ -1,6 +1,7 @@
 import 'package:audioplayers/audioplayers.dart';
 import 'dart:async';
 import 'package:flutter/widgets.dart'; // Necessário para o ciclo de vida da app
+import 'package:flutter/foundation.dart' show debugPrint;
 
 class AudioManager with WidgetsBindingObserver {
   static final AudioManager _instance = AudioManager._internal();
@@ -24,7 +25,8 @@ class AudioManager with WidgetsBindingObserver {
       _bgmPlayer.pause();
     } else if (state == AppLifecycleState.resumed) {
       // Jogador voltou à app
-      if (!isMuted) {
+      // Só retoma se já houve uma faixa a tocar (evita resume() sem fonte)
+      if (!isMuted && _currentTrack.isNotEmpty) {
         _bgmPlayer.resume();
       }
     }
@@ -62,10 +64,18 @@ class AudioManager with WidgetsBindingObserver {
   }
 
   Future<void> _startNewTrack(String trackName) async {
-    await _bgmPlayer.stop();
-    await _bgmPlayer.setVolume(0.0);
-    await _bgmPlayer.setReleaseMode(ReleaseMode.loop);
-    await _bgmPlayer.play(AssetSource('sounds/$trackName'));
+    try {
+      await _bgmPlayer.stop();
+      await _bgmPlayer.setVolume(0.0);
+      await _bgmPlayer.setReleaseMode(ReleaseMode.loop);
+      await _bgmPlayer.play(AssetSource('sounds/$trackName'));
+    } catch (e) {
+      // No browser o autoplay é bloqueado até ao primeiro toque. Limpar a faixa
+      // atual permite que a próxima chamada (ex.: o toque no menu) volte a tentar.
+      debugPrint('[Audio] Não foi possível iniciar "$trackName": $e');
+      _currentTrack = '';
+      return;
+    }
 
     double vol = 0.0;
     _fadeTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
