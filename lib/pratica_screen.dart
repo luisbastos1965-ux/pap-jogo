@@ -112,6 +112,9 @@ class _PraticaScreenState extends State<PraticaScreen> with SingleTickerProvider
 
       _armWatchdog();
       await _scannerController.start().timeout(_startTimeout);
+
+      // Câmara operacional: volta a aceitar leituras de QR
+      if (mounted) _isScanning = true;
       
     } on TimeoutException {
       if (mounted) setState(() => _localError = 'O pedido expirou. A câmara não respondeu a tempo.');
@@ -124,20 +127,26 @@ class _PraticaScreenState extends State<PraticaScreen> with SingleTickerProvider
     }
   }
 
-  Future<void> _pauseScanner() async {
+  // Pára a câmara por completo. Na web, pause() deixa o <video> congelado e um
+  // start() posterior é recusado (já inicializado), pelo que o leitor ficava morto.
+  Future<void> _stopScanner() async {
     try {
-      await _scannerController.pause();
+      await _scannerController.stop();
     } catch (e) {
-      debugPrint('Erro ao pausar: $e');
+      debugPrint('Erro ao parar: $e');
     }
   }
 
+  // Reinicia a câmara pelo mesmo caminho do botão "TENTAR NOVAMENTE"
+  // (stop -> espera -> start) e só então volta a aceitar leituras.
   Future<void> _resumeScanner() async {
-    try {
-      await _scannerController.start();
-    } catch (e) {
-      debugPrint('Erro ao retomar: $e');
+    if (!mounted) return;
+    // Se houver um arranque em curso, espera que termine (máx. ~5 s)
+    for (int i = 0; i < 50 && _busy && mounted; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 100));
     }
+    if (!mounted) return;
+    await _startCamera(isRetry: true);
   }
 
   Future<void> _onQRDetected(BarcodeCapture capture) async {
@@ -153,7 +162,7 @@ class _PraticaScreenState extends State<PraticaScreen> with SingleTickerProvider
     if (code == null) return;
 
     _isScanning = false;
-    await _pauseScanner();
+    await _stopScanner();
     if (!mounted) return;
 
     final Uri? uri = Uri.tryParse(code);
@@ -166,7 +175,6 @@ class _PraticaScreenState extends State<PraticaScreen> with SingleTickerProvider
       _resumeTimer = Timer(const Duration(seconds: 3), () async {
         if (!mounted) return;
         await _resumeScanner();
-        if (mounted) _isScanning = true;
       });
       
     } else {
@@ -179,10 +187,8 @@ class _PraticaScreenState extends State<PraticaScreen> with SingleTickerProvider
         ),
       );
       
-      if (mounted) {
-        await _resumeScanner();
-        setState(() => _isScanning = true);
-      }
+      // Regressou do caso (CONCLUIR CASO / voltar): reinicia a câmara já
+      if (mounted) await _resumeScanner();
     }
   }
 

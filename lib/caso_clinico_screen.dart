@@ -185,15 +185,16 @@ class _CasoClinicoScreenState extends State<CasoClinicoScreen> {
         opcoesMapeadas.add({'texto': opcaoTexto, 'correta': correta});
       }
 
-      final String idLimpo = (data['id'] ?? widget.qrData).toString().replaceAll('_', ' ');
+      final String rotuloUtente = _rotuloUtente(data);
+      final String tituloUtente = _tituloUtente(data, mapaNiveis, nivelAUsar);
 
       setState(() {
         _niveisDisponiveis = disponiveis;
         _perfilJogadorAtivo = nivelAUsar;
         _aviso = aviso;
         _currentCase = {
-          'id_bonito': idLimpo,
-          'paciente': data['titulo'] ?? 'Desconhecido',
+          'id_bonito': rotuloUtente, // ex.: "UTENTE 034"
+          'paciente': tituloUtente,
           'sintomas': data['historia_base'] ?? '',
           'cenario': '${levelData['historia_extra'] ?? ''}\n\n${levelData['pergunta'] ?? ''}'.trim(),
           'opcoes': opcoesMapeadas,
@@ -209,6 +210,103 @@ class _CasoClinicoScreenState extends State<CasoClinicoScreen> {
         _isLoading = false;
       });
     }
+  }
+
+  // ------------------------------------------------- UTENTE (rótulo + título)
+  // Os documentos de casos_praticos não têm um campo com o nome do utente
+  // (só: caso, niveis, historia_extra, pergunta, opcoes, resposta_correta,
+  // explicacao). Por isso o título é obtido por camadas de fallback.
+  static final RegExp _regexPrefixoCaso =
+      RegExp(r'^\s*caso[\s_\-]*\d+\s*[:\-–—·]*\s*', caseSensitive: false);
+
+  // "Sr. António", "Sra. Maria Silva", "D. Rosa", "Senhor Carlos", "Dona Alice"
+  static final RegExp _regexNomeTratamento = RegExp(
+    r'\b(?:Sr\.?|Sra\.?|D\.|Senhor|Senhora|Dona)\s+\p{Lu}\p{Ll}+(?:\s+(?:d[aeo]s?\s+)?\p{Lu}\p{Ll}+)?',
+    unicode: true,
+  );
+
+  // "chama-se Rui", "chamada Teresa", "de nome Joana Reis"
+  static final RegExp _regexChamaSe = RegExp(
+    r'(?:chama-se|chamad[oa]|de nome)\s+(\p{Lu}\p{Ll}+(?:\s+\p{Lu}\p{Ll}+)?)',
+    unicode: true,
+  );
+
+  // Sujeito da frase inicial: "Uma utente diz...", "Um jovem chega..."
+  static final RegExp _regexSujeito = RegExp(
+    r'^\s*((?:Uma?|O|A|Os|As)\s+[^,.:;\n]{2,40}?)\s+(?:diz|disse|chega|chegou|entra|entrou|pede|pediu|vem|veio|aparece|dirige-se|procura|traz|trouxe|refere|queixa-se|telefona|liga|quer|apresenta|está|tem|tomou|esqueceu-se|regressa|volta|solicita|questiona|pergunta|relata|informa|menciona)\b',
+    caseSensitive: false,
+    unicode: true,
+  );
+
+  String _str(dynamic v) => (v == null || v is Map || v is List) ? '' : v.toString().trim();
+
+  // "UTENTE 034": usa o número do id do caso (ex.: CASO_034 -> 034)
+  String _rotuloUtente(Map<String, dynamic> data) {
+    for (final String fonte in [_str(data['id']), widget.qrData.trim()]) {
+      final Match? m = RegExp(r'(\d+)').firstMatch(fonte);
+      if (m != null) return 'UTENTE ${m.group(1)}';
+    }
+    return 'UTENTE';
+  }
+
+  String _tituloUtente(Map<String, dynamic> data, Map<String, dynamic> mapaNiveis, String nivelAtual) {
+    const List<String> chaves = ['titulo', 'título', 'nome', 'utente', 'paciente', 'nome_utente', 'nome_paciente'];
+
+    // Níveis com o nível atual primeiro
+    final List<Map<String, dynamic>> niveis = [];
+    if (mapaNiveis[nivelAtual] is Map) {
+      niveis.add(Map<String, dynamic>.from(mapaNiveis[nivelAtual] as Map));
+    }
+    for (final e in mapaNiveis.entries) {
+      if (e.key != nivelAtual && e.value is Map) {
+        niveis.add(Map<String, dynamic>.from(e.value as Map));
+      }
+    }
+
+    // 1) Campo explícito na raiz ou dentro de um nível
+    for (final k in chaves) {
+      final String s = _str(data[k]);
+      if (s.isNotEmpty) return s;
+    }
+    for (final n in niveis) {
+      for (final k in chaves) {
+        final String s = _str(n[k]);
+        if (s.isNotEmpty) return s;
+      }
+    }
+
+    // 2) Campo "caso", se tiver mais do que o código (ex.: "CASO_034 - Sr. António")
+    final String caso = _str(data['caso']).replaceFirst(_regexPrefixoCaso, '').trim();
+    if (caso.isNotEmpty) return caso;
+
+    // 3) Nome próprio escrito nos textos do caso
+    final List<String> textos = [];
+    void add(dynamic v) {
+      final String s = _str(v);
+      if (s.isNotEmpty) textos.add(s);
+    }
+
+    add(data['historia_base']);
+    for (final n in niveis) {
+      add(n['historia_extra']);
+      add(n['pergunta']);
+    }
+    final String blob = textos.join('\n');
+
+    final Match? nome = _regexNomeTratamento.firstMatch(blob);
+    if (nome != null) return nome.group(0)!.replaceAll(RegExp(r'\s+'), ' ').trim();
+    final Match? chamase = _regexChamaSe.firstMatch(blob);
+    if (chamase != null) return chamase.group(1)!.trim();
+
+    // 4) Sem nome: descreve o utente pelo sujeito da história ("Uma utente")
+    for (final t in textos) {
+      final Match? s = _regexSujeito.firstMatch(t);
+      if (s != null) {
+        final String sujeito = s.group(1)!.trim();
+        return sujeito[0].toUpperCase() + sujeito.substring(1);
+      }
+    }
+    return 'Utente por identificar';
   }
 
   List<Map<String, dynamic>> get _opcoes =>
