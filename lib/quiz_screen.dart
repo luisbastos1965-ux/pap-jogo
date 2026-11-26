@@ -1,9 +1,86 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'audio_manager.dart';
 import 'progress_manager.dart';
+
+/// Cache em duas camadas das questões do Quiz (1 documento por nível):
+///   1) memória (vive enquanto a app/separador estiver aberto);
+///   2) shared_preferences (permanente, sem expiração);
+///   3) Firestore `questoes/nivel_<N>` (1 única leitura, só se 1) e 2) falharem).
+///
+/// Para forçar a atualização das questões no futuro, basta subir `_versaoCache`
+/// (ex.: v1 -> v2): as chaves antigas deixam de ser lidas.
+class QuizCache {
+  QuizCache._();
+
+  static const String _versaoCache = 'v1';
+  static final Map<int, List<Map<String, dynamic>>> _memoria = {};
+
+  static String _chave(int nivel) => 'pharma_inc_quiz_cache_${_versaoCache}_nivel_$nivel';
+
+  /// Devolve uma CÓPIA da lista, para que o baralhamento no ecrã
+  /// nunca altere a lista guardada na cache.
+  static List<Map<String, dynamic>> _copia(List<Map<String, dynamic>> origem) =>
+      origem.map((q) => Map<String, dynamic>.from(q)).toList();
+
+  static List<Map<String, dynamic>>? _converter(dynamic bruto) {
+    if (bruto is! List) return null;
+    final lista = bruto
+        .whereType<Map>()
+        .map((m) => Map<String, dynamic>.from(m))
+        .toList();
+    return lista.isEmpty ? null : lista;
+  }
+
+  static Future<List<Map<String, dynamic>>> obter(int nivel) async {
+    // 1) Memória
+    final emMemoria = _memoria[nivel];
+    if (emMemoria != null && emMemoria.isNotEmpty) {
+      return _copia(emMemoria);
+    }
+
+    // 2) Cache local permanente
+    SharedPreferences? prefs;
+    try {
+      prefs = await SharedPreferences.getInstance();
+      final json = prefs.getString(_chave(nivel));
+      if (json != null) {
+        final lista = _converter(jsonDecode(json));
+        if (lista != null) {
+          _memoria[nivel] = lista;
+          return _copia(lista);
+        }
+      }
+    } catch (e) {
+      // Cache corrompida ou indisponível: segue para o Firestore.
+      debugPrint('Cache local do nível $nivel inválida: $e');
+    }
+
+    // 3) Firestore: 1 única leitura
+    final doc = await FirebaseFirestore.instance
+        .collection('questoes')
+        .doc('nivel_$nivel')
+        .get();
+
+    final lista = _converter(doc.data()?['questoes']);
+    if (lista == null) return [];
+
+    _memoria[nivel] = lista;
+    try {
+      prefs ??= await SharedPreferences.getInstance();
+      await prefs.setString(_chave(nivel), jsonEncode(lista));
+    } catch (e) {
+      // Falhar a gravação local não impede o quiz de funcionar.
+      debugPrint('Não foi possível guardar a cache local do nível $nivel: $e');
+    }
+    return _copia(lista);
+  }
+}
 
 class QuizScreen extends StatefulWidget {
   final String levelName;
@@ -107,22 +184,19 @@ class _QuizScreenState extends State<QuizScreen> {
     super.dispose();
   }
 
-  // --- FUNÇÃO DO FIREBASE ---
+  // --- CARREGAMENTO (memória -> shared_preferences -> Firestore) ---
   Future<void> _carregarPerguntas() async {
     try {
-      final snapshot = await FirebaseFirestore.instance
-          .collection('questoes')
-          .where('nivel', isEqualTo: _levelNumber)
-          .get();
+      final perguntas = await QuizCache.obter(_levelNumber);
 
       if (!mounted) return;
       setState(() {
-        _perguntas = snapshot.docs.map((doc) => doc.data()).toList();
-        _perguntas.shuffle(); // Baralha a ordem das perguntas
+        _perguntas = perguntas;
+        _perguntas.shuffle(); // Baralha a ordem das perguntas (cópia, a cache fica intacta)
         _isLoading = false;
       });
     } catch (e) {
-      debugPrint("Erro ao carregar o Firestore: $e");
+      debugPrint("Erro ao carregar as questões: $e");
       if (!mounted) return;
       setState(() => _isLoading = false);
     }
