@@ -185,8 +185,12 @@ class _CasoClinicoScreenState extends State<CasoClinicoScreen> {
         opcoesMapeadas.add({'texto': opcaoTexto, 'correta': correta});
       }
 
+      // Baralha só depois de marcar a correta (a marca acompanha a opção).
+      // As letras A, B, C... são atribuídas no ecrã pela nova posição.
+      opcoesMapeadas.shuffle();
+
       final String rotuloUtente = _rotuloUtente(data);
-      final String tituloUtente = _tituloUtente(data, mapaNiveis, nivelAUsar);
+      final String tituloUtente = _tituloUtente(data, levelData, mapaNiveis, nivelAUsar);
 
       setState(() {
         _niveisDisponiveis = disponiveis;
@@ -213,9 +217,9 @@ class _CasoClinicoScreenState extends State<CasoClinicoScreen> {
   }
 
   // ------------------------------------------------- UTENTE (rótulo + título)
-  // Os documentos de casos_praticos não têm um campo com o nome do utente
-  // (só: caso, niveis, historia_extra, pergunta, opcoes, resposta_correta,
-  // explicacao). Por isso o título é obtido por camadas de fallback.
+  // O título é procurado primeiro no nível ativo (levelData), depois na raiz do
+  // documento e por fim nos outros níveis. Como o documento pode não ter um
+  // campo com o nome do utente, há ainda fallbacks a partir dos textos do caso.
   static final RegExp _regexPrefixoCaso =
       RegExp(r'^\s*caso[\s_\-]*\d+\s*[:\-–—·]*\s*', caseSensitive: false);
 
@@ -240,6 +244,18 @@ class _CasoClinicoScreenState extends State<CasoClinicoScreen> {
 
   String _str(dynamic v) => (v == null || v is Map || v is List) ? '' : v.toString().trim();
 
+  // Valores de preenchimento que contam como "sem título"
+  static const Set<String> _valoresVazios = {
+    'desconhecido', 'desconhecida', 'utente desconhecido', 'paciente desconhecido',
+    'sem nome', 'n/a', 'null', 'undefined', '-', '—',
+  };
+
+  // Como o _str, mas devolve '' se o valor for um preenchimento sem informação
+  String _valorUtil(dynamic v) {
+    final String s = _str(v);
+    return _valoresVazios.contains(s.toLowerCase()) ? '' : s;
+  }
+
   // "UTENTE 034": usa o número do id do caso (ex.: CASO_034 -> 034)
   String _rotuloUtente(Map<String, dynamic> data) {
     for (final String fonte in [_str(data['id']), widget.qrData.trim()]) {
@@ -249,35 +265,35 @@ class _CasoClinicoScreenState extends State<CasoClinicoScreen> {
     return 'UTENTE';
   }
 
-  String _tituloUtente(Map<String, dynamic> data, Map<String, dynamic> mapaNiveis, String nivelAtual) {
+  String _tituloUtente(
+    Map<String, dynamic> data,
+    Map<String, dynamic> levelData,
+    Map<String, dynamic> mapaNiveis,
+    String nivelAtual,
+  ) {
     const List<String> chaves = ['titulo', 'título', 'nome', 'utente', 'paciente', 'nome_utente', 'nome_paciente'];
 
-    // Níveis com o nível atual primeiro
-    final List<Map<String, dynamic>> niveis = [];
-    if (mapaNiveis[nivelAtual] is Map) {
-      niveis.add(Map<String, dynamic>.from(mapaNiveis[nivelAtual] as Map));
-    }
-    for (final e in mapaNiveis.entries) {
-      if (e.key != nivelAtual && e.value is Map) {
-        niveis.add(Map<String, dynamic>.from(e.value as Map));
-      }
-    }
+    final List<Map<String, dynamic>> outrosNiveis = [
+      for (final e in mapaNiveis.entries)
+        if (e.key != nivelAtual && e.value is Map) Map<String, dynamic>.from(e.value as Map),
+    ];
 
-    // 1) Campo explícito na raiz ou dentro de um nível
-    for (final k in chaves) {
-      final String s = _str(data[k]);
-      if (s.isNotEmpty) return s;
-    }
-    for (final n in niveis) {
+    // Ordem de prioridade: nível ativo, raiz do documento, outros níveis
+    final List<Map<String, dynamic>> fontes = [levelData, data, ...outrosNiveis];
+
+    // 1) Campo explícito com o título ou o nome do utente
+    for (final fonte in fontes) {
       for (final k in chaves) {
-        final String s = _str(n[k]);
+        final String s = _valorUtil(fonte[k]);
         if (s.isNotEmpty) return s;
       }
     }
 
     // 2) Campo "caso", se tiver mais do que o código (ex.: "CASO_034 - Sr. António")
-    final String caso = _str(data['caso']).replaceFirst(_regexPrefixoCaso, '').trim();
-    if (caso.isNotEmpty) return caso;
+    for (final fonte in fontes) {
+      final String caso = _valorUtil(_str(fonte['caso']).replaceFirst(_regexPrefixoCaso, ''));
+      if (caso.isNotEmpty) return caso;
+    }
 
     // 3) Nome próprio escrito nos textos do caso
     final List<String> textos = [];
@@ -287,7 +303,7 @@ class _CasoClinicoScreenState extends State<CasoClinicoScreen> {
     }
 
     add(data['historia_base']);
-    for (final n in niveis) {
+    for (final n in [levelData, ...outrosNiveis]) {
       add(n['historia_extra']);
       add(n['pergunta']);
     }
